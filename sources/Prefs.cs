@@ -12,6 +12,7 @@ public static class Prefs
     public static MelonPreferences_Entry<bool> SyncBones;
     public static MelonPreferences_Entry<bool> ForceFullSkeleton;
     public static MelonPreferences_Entry<bool> GripFromFingers;
+    public static MelonPreferences_Entry<bool> PinchLoco;
 
     private static bool _dirty;
     private static float _flushAt = -1f;
@@ -26,12 +27,14 @@ public static class Prefs
         SyncBones = Category.CreateEntry("SyncBones", NerveMod.SyncBones);
         ForceFullSkeleton = Category.CreateEntry("ForceFullSkeleton", NerveMod.ForceFullSkeleton);
         GripFromFingers = Category.CreateEntry("GripFromFingers", NerveMod.GripFromFingers);
+        PinchLoco = Category.CreateEntry("PinchLoco", NerveMod.PinchLoco);
 
         NerveMod.Enabled = Enabled.Value;
         NerveMod.SyncWrist = SyncWrist.Value;
         NerveMod.SyncBones = SyncBones.Value;
         NerveMod.ForceFullSkeleton = ForceFullSkeleton.Value;
         NerveMod.GripFromFingers = GripFromFingers.Value;
+        NerveMod.PinchLoco = PinchLoco.Value;
     }
 
     public static void MarkDirty()
@@ -60,6 +63,7 @@ public static class Prefs
             SyncBones.Value = NerveMod.SyncBones;
             ForceFullSkeleton.Value = NerveMod.ForceFullSkeleton;
             GripFromFingers.Value = NerveMod.GripFromFingers;
+            PinchLoco.Value = NerveMod.PinchLoco;
             MelonPreferences.Save();
         }
         catch

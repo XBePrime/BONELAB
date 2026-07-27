@@ -552,4 +552,37 @@ public static class HandSync
         if (v > 1f) return 1f;
         return v;
     }
+
+    /// <summary>Read latest cached Quest hand pose/curls for locomotion / other systems.</summary>
+    public static bool TryGetHand(
+        bool left,
+        out Vector3 position,
+        out Quaternion rotation,
+        out float thumb,
+        out float index,
+        out float middle,
+        out float ring,
+        out float pinky)
+    {
+        position = default;
+        rotation = Quaternion.identity;
+        thumb = index = middle = ring = pinky = 0f;
+
+        bool live = left ? _liveL : _liveR;
+        if (!live && !Holding(left ? _lastTrackLeft : _lastTrackRight))
+            return false;
+
+        if (left)
+        {
+            position = _posL; rotation = _rotL;
+            thumb = _thumbL; index = _indexL; middle = _middleL; ring = _ringL; pinky = _pinkyL;
+        }
+        else
+        {
+            position = _posR; rotation = _rotR;
+            thumb = _thumbR; index = _indexR; middle = _middleR; ring = _ringR; pinky = _pinkyR;
+        }
+
+        return true;
+    }
 }

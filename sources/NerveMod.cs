@@ -17,9 +17,11 @@ public class NerveMod : MelonMod
     public static bool SyncBones = true;
     public static bool ForceFullSkeleton = true;
     public static bool GripFromFingers = true;
+    public static bool PinchLoco = true;
 
     private static readonly Color Accent = new Color(0.95f, 0.35f, 0.12f);
     private static readonly Color AccentAlt = new Color(0.20f, 0.85f, 0.65f);
+    private static readonly Color LocoAccent = new Color(0.35f, 0.75f, 1f);
 
     public override void OnInitializeMelon()
     {
@@ -32,7 +34,7 @@ public class NerveMod : MelonMod
 
         BuildMenu();
 
-        MelonLogger.Msg("NERVE ready — put the controllers down, your fingers drive the rig.");
+        MelonLogger.Msg("NERVE ready — hands drive the rig. Pinch+point to walk.");
         MelonLogger.Msg("Telegram: @be_primex");
     }
 
@@ -87,6 +89,12 @@ public class NerveMod : MelonMod
             root.CreateBool("Grip From Fingers", AccentAlt, GripFromFingers, val =>
             {
                 GripFromFingers = val;
+                Prefs.MarkDirty();
+            });
+
+            root.CreateBool("Pinch Walk", LocoAccent, PinchLoco, val =>
+            {
+                PinchLoco = val;
                 Prefs.MarkDirty();
             });
         }
