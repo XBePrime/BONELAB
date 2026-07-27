@@ -43,7 +43,7 @@ Precision aim assist — NPCs & LabFusion players
 
 <a href="https://github.com/XBePrime/BONELAB/tree/aimbot"><img src="https://img.shields.io/badge/%20-Open_Aimbot-E11D48?style=for-the-badge&logo=github&logoColor=white" height="44" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB/raw/aimbot/BePrimeAimbot.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
+<a href="https://github.com/XBePrime/BONELAB/raw/aimbot/Aimbot.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Telegram-0284C7?style=for-the-badge&logo=telegram&logoColor=white" height="44" /></a>
 
