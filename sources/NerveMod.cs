@@ -48,12 +48,12 @@ public class NerveMod : MelonMod
         {
             Prefs.Create();
             // Force safe defaults so old MelonPreferences can't re-enable crashy paths.
-            // Wrist ON by default now that OVR root pose is the source (Marrow IsTracking was dead).
             SyncWrist = true;
             SyncBones = false;
             ForceFullSkeleton = false;
-            MelonLogger.Msg("NERVE defaults: Wrist ON (OVR), Bones/Skeleton OFF");
+            MelonLogger.Msg("NERVE defaults: Wrist ON, Bones/Skeleton OFF");
             Prefs.MarkDirty();
+            HandPerms.EnsureRequested();
         }
         catch (Exception ex)
         {
@@ -101,7 +101,7 @@ public class NerveMod : MelonMod
         if (_patchStage > 0 && now >= _nextHeartbeatAt)
         {
             _nextHeartbeatAt = now + 5f;
-            MelonLogger.Msg($"NERVE heartbeat stage={_patchStage} liveL={HandSync.LiveLeft} liveR={HandSync.LiveRight} | {OvrHands.ProbeLine()}");
+            MelonLogger.Msg($"NERVE heartbeat stage={_patchStage} liveL={HandSync.LiveLeft} liveR={HandSync.LiveRight} | {HandPerms.ProbeLine()} | {UnityXrHands.ProbeLine()} | {OvrHands.ProbeLine()}");
         }
 
         if (_patchStage == 0)
@@ -111,8 +111,10 @@ public class NerveMod : MelonMod
             if (!RigReady(ref _armAt))
                 return;
             ArmStage1_CurlsOnly();
+            HandPerms.EnsureRequested();
             OvrHands.EnsureConfigured();
-            MelonLogger.Msg("NERVE OVR probe: " + OvrHands.ProbeLine());
+            UnityXrHands.ForceMarrowHandMaps();
+            MelonLogger.Msg("NERVE probe: " + HandPerms.ProbeLine() + " | " + UnityXrHands.ProbeLine() + " | " + OvrHands.ProbeLine());
             return;
         }
 

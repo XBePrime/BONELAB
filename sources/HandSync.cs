@@ -274,7 +274,7 @@ public static class HandSync
             if (!_loggedFirstSync)
             {
                 _loggedFirstSync = true;
-                MelonLogger.Msg($"NERVE first hand OK ({(left ? "L" : "R")}) T={thumb:0.00} I={index:0.00} M={middle:0.00} | {OvrHands.ProbeLine()}");
+                MelonLogger.Msg($"NERVE first hand OK ({(left ? "L" : "R")}) T={thumb:0.00} I={index:0.00} M={middle:0.00} | {HandPerms.ProbeLine()} | {UnityXrHands.ProbeLine()} | {OvrHands.ProbeLine()}");
             }
 
             if (NerveMod.ForceFullSkeleton && SpawnSettled && xrHand != null)
@@ -378,7 +378,10 @@ public static class HandSync
     }
 
     /// <summary>
-    /// Sample hand pose/curls: OVR first (Quest truth), Marrow XRHand as supplement.
+    /// Sample hand pose/curls. Priority:
+    /// 1) Marrow HandActionMap (after we force-pick Unity XR devices)
+    /// 2) Unity XR InputDevices / handData directly
+    /// 3) OVRPlugin (often disabled on OpenXR Quest builds)
     /// </summary>
     private static bool SampleHand(bool left, XRHand marrowHand, out Vector3 pos, out Quaternion rot,
         out float thumb, out float index, out float middle, out float ring, out float pinky)
@@ -387,7 +390,7 @@ public static class HandSync
         rot = Quaternion.identity;
         thumb = index = middle = ring = pinky = 0f;
 
-        bool ovr = OvrHands.TrySample(left, out pos, out rot, out thumb, out index, out middle, out ring, out pinky);
+        UnityXrHands.ForceMarrowHandMaps();
 
         try
         {
@@ -406,11 +409,8 @@ public static class HandSync
                 if (marrowTrack || marrowEnergy > 0.05f)
                 {
                     thumb = mt; index = mi; middle = mm; ring = mr; pinky = mp;
-                    if (marrowTrack)
-                    {
-                        pos = marrowHand.Position;
-                        rot = marrowHand.Rotation;
-                    }
+                    pos = marrowHand.Position;
+                    rot = marrowHand.Rotation;
                     return true;
                 }
             }
@@ -420,7 +420,10 @@ public static class HandSync
             NerveLog.Warn("SampleHand marrow", ex);
         }
 
-        return ovr;
+        if (UnityXrHands.TrySample(left, out pos, out rot, out thumb, out index, out middle, out ring, out pinky))
+            return true;
+
+        return OvrHands.TrySample(left, out pos, out rot, out thumb, out index, out middle, out ring, out pinky);
     }
 
     private static void StorePose(bool left, Vector3 pos, Quaternion rot,
