@@ -51,11 +51,12 @@ BoneMenu → AIMBOT
 |--------|---------|
 | Aimbot | On |
 | Aimbot FOV | 180 |
-| Target | Head |
+| Target 0C/1H/2Chest | 1 (Head) |
 | Target NPCs | On |
 | Target Players | On |
 | Triggerbot | Off |
 | Headshots Only | Off |
+| Smoothing 0-5 (Advanced) | 1 (Adaptive) |
 
 ---
 

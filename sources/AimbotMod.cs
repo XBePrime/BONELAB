@@ -103,6 +103,11 @@ public class AimbotMod : MelonMod
         MelonLogger.Msg("Telegram: @be_primex");
     }
 
+    public override void OnUpdate()
+    {
+        Prefs.Tick();
+    }
+
     public override void OnFixedUpdate()
     {
         if (FusionLoaded && TargetPlayers)
@@ -111,85 +116,106 @@ public class AimbotMod : MelonMod
 
     public override void OnDeinitializeMelon()
     {
-        Prefs.Save();
+        Prefs.FlushNow();
     }
 
     private static void BuildMenu()
     {
-        BoneMenuPage root = BoneMenuPage.Root.CreatePage("AIMBOT", Accent);
+        try
+        {
+            // maxElements high = no BoneMenu pagination/arrows (known crash source on Quest)
+            BoneMenuPage root = BoneMenuPage.Root.CreatePage("AIMBOT", Accent, 64, true);
 
-        root.CreateBool("Aimbot", Accent, AimBotEnabled, val =>
-        {
-            AimBotEnabled = val;
-            Prefs.Save();
-            SetTargetsEnabled(AimBotEnabled || TriggerBotEnabled);
-        });
+            root.CreateBool("Aimbot", Accent, AimBotEnabled, val =>
+            {
+                AimBotEnabled = val;
+                Prefs.MarkDirty();
+                SetTargetsEnabled(AimBotEnabled || TriggerBotEnabled);
+            });
 
-        root.CreateFloat("Aimbot FOV", Accent, AimBotFov, 3f, 0f, 360f, val =>
-        {
-            AimBotFov = val;
-            Prefs.Save();
-        });
+            // Larger FOV step = fewer callbacks while dragging; no disk I/O in callback
+            root.CreateFloat("Aimbot FOV", Accent, AimBotFov, 5f, 0f, 360f, val =>
+            {
+                AimBotFov = Mathf.Clamp(val, 0f, 360f);
+                Prefs.MarkDirty();
+            });
 
-        root.CreateEnum("Target", Accent, Target, val =>
-        {
-            Target = (TargetBone)val;
-            Prefs.Save();
-        });
+            // CreateInt instead of CreateEnum — EnumElement is a common BoneMenu crash on Quest
+            root.CreateInt("Target 0C/1H/2Chest", Accent, (int)Target, 1, 0, 2, val =>
+            {
+                Target = (TargetBone)Mathf.Clamp(val, 0, 2);
+                Prefs.MarkDirty();
+            });
 
-        root.CreateBool("Target NPCs", Accent, TargetNpcs, val =>
-        {
-            TargetNpcs = val;
-            Prefs.Save();
-        });
+            root.CreateBool("Target NPCs", Accent, TargetNpcs, val =>
+            {
+                TargetNpcs = val;
+                Prefs.MarkDirty();
+            });
 
-        root.CreateBool("Target Players", Accent, TargetPlayers, val =>
-        {
-            TargetPlayers = val;
-            Prefs.Save();
-            if (!val)
-                PlayerTarget.Clear();
-        });
+            root.CreateBool("Target Players", Accent, TargetPlayers, val =>
+            {
+                TargetPlayers = val;
+                Prefs.MarkDirty();
+                // Do not Clear() here — FixedUpdate may be iterating PlayerTarget.All
+            });
 
-        root.CreateBool("Triggerbot", AccentAlt, TriggerBotEnabled, val =>
-        {
-            TriggerBotEnabled = val;
-            Prefs.Save();
-            SetTargetsEnabled(AimBotEnabled || TriggerBotEnabled);
-        });
+            root.CreateBool("Triggerbot", AccentAlt, TriggerBotEnabled, val =>
+            {
+                TriggerBotEnabled = val;
+                Prefs.MarkDirty();
+                SetTargetsEnabled(AimBotEnabled || TriggerBotEnabled);
+            });
 
-        root.CreateBool("Headshots Only", AccentAlt, HeadshotsOnly, val =>
-        {
-            HeadshotsOnly = val;
-            Prefs.Save();
-        });
+            root.CreateBool("Headshots Only", AccentAlt, HeadshotsOnly, val =>
+            {
+                HeadshotsOnly = val;
+                Prefs.MarkDirty();
+            });
 
-        BoneMenuPage advanced = root.CreatePage("Advanced Options", Color.green);
-        advanced.CreateEnum("Movement Compensation Smoothing", Color.white, Smoothing, val =>
+            BoneMenuPage advanced = root.CreatePage("Advanced", Color.green, 64, true);
+            advanced.CreateInt("Smoothing 0-5", Color.white, (int)Smoothing, 1, 0, 5, val =>
+            {
+                Smoothing = (MovementCompensationSmoothing)Mathf.Clamp(val, 0, 5);
+                NpcTarget.ApplySmoothing(Smoothing);
+                PlayerTarget.ApplySmoothing(Smoothing);
+                Prefs.MarkDirty();
+            });
+            advanced.CreateBool("Bullet Drop", Color.white, BulletDrop, val =>
+            {
+                BulletDrop = val;
+                Prefs.MarkDirty();
+            });
+            advanced.CreateBool("Move Comp", Color.white, MovementCompensation, val =>
+            {
+                MovementCompensation = val;
+                Prefs.MarkDirty();
+            });
+        }
+        catch (Exception ex)
         {
-            Smoothing = (MovementCompensationSmoothing)val;
-            NpcTarget.ApplySmoothing(Smoothing);
-            PlayerTarget.ApplySmoothing(Smoothing);
-            Prefs.Save();
-        });
-        advanced.CreateBool("Bullet Drop Compensation", Color.white, BulletDrop, val =>
-        {
-            BulletDrop = val;
-            Prefs.Save();
-        });
-        advanced.CreateBool("Movement Compensation", Color.white, MovementCompensation, val =>
-        {
-            MovementCompensation = val;
-            Prefs.Save();
-        });
+            MelonLogger.Error($"AIMBOT BoneMenu build failed: {ex}");
+        }
     }
 
     private static void SetTargetsEnabled(bool enabled)
     {
-        foreach (var npc in NpcTarget.All)
+        try
         {
-            if (npc != null)
-                npc.enabled = enabled;
+            // Snapshot — HashSet must not be mutated/iterated unsafely from destroyed NPC callbacks
+            var snapshot = new System.Collections.Generic.List<NpcTarget>(NpcTarget.All);
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                NpcTarget npc = snapshot[i];
+                if (npc == null)
+                    continue;
+                try { npc.enabled = enabled; }
+                catch { /* destroyed Il2Cpp object */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Warning($"AIMBOT SetTargetsEnabled: {ex.Message}");
         }
     }
 

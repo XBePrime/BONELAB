@@ -326,9 +326,20 @@ public sealed class PlayerTarget : IAimTarget
         if (!AimbotMod.TargetPlayers || !AimbotMod.FusionLoaded)
             return;
 
-        SyncFromFusion();
-        foreach (var player in All)
-            player?.FixedTick();
+        try
+        {
+            SyncFromFusion();
+            // Copy refs — menu/other threads must not Clear mid-iteration
+            for (int i = 0; i < All.Count; i++)
+            {
+                PlayerTarget player = All[i];
+                player?.FixedTick();
+            }
+        }
+        catch (Exception ex)
+        {
+            MelonLoader.MelonLogger.Warning($"AIMBOT PlayerTarget tick: {ex.Message}");
+        }
     }
 
     public static void Clear()
