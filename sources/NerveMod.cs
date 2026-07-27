@@ -26,11 +26,10 @@ public class NerveMod : MelonMod
     {
         Prefs.Create();
 
-        // Patch only our types — never the whole assembly.
+        // Patch entire mod assembly — includes nested [HarmonyPatch] types (HarmonyX + stock).
         try
         {
-            HarmonyInstance.PatchAll(typeof(HandSync));
-            HarmonyInstance.PatchAll(typeof(PinchLoco));
+            HarmonyInstance.PatchAll(typeof(HandSync).Assembly);
         }
         catch (Exception ex)
         {

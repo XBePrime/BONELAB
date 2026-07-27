@@ -36,12 +36,14 @@ public static class HandSync
     public static void OnLevelLoaded()
     {
         Reset();
+        PinchLoco.Reset();
         _levelLoadedAt = Time.unscaledTime;
     }
 
     public static void OnLevelUnloaded()
     {
         Reset();
+        PinchLoco.Reset();
         _levelLoadedAt = -999f;
     }
 
@@ -116,7 +118,10 @@ public static class HandSync
             if (_liveR || Holding(_lastTrackRight))
                 ApplyAnimatorFingers(false);
         }
-        catch { /* never crash render loop */ }
+        catch (Exception ex)
+        {
+            NerveLog.Warn("LateTick", ex);
+        }
     }
 
     // Stock ProcessFingers always runs. We only stamp Quest curls afterwards.
@@ -134,7 +139,7 @@ public static class HandSync
             }
             catch (Exception ex)
             {
-                MelonLogger.Warning($"NERVE OnUpdate: {ex.Message}");
+                NerveLog.Warn("OnUpdate", ex);
             }
         }
     }
@@ -163,7 +168,10 @@ public static class HandSync
                     ApplyWrist(__instance, left);
                 }
             }
-            catch { /* never break physics */ }
+            catch (Exception ex)
+            {
+                NerveLog.Warn("OnVrFixedUpdate", ex);
+            }
         }
     }
 
@@ -436,6 +444,16 @@ public static class HandSync
 
     private static void ApplyGrip(OpenController oc, bool left)
     {
+        // Pinch-walk pose curls middle/ring/pinky — must NOT count as a grab.
+        // Use gesture check (not Driving* flags) so we don't depend on rig-update order.
+        if (NerveMod.PinchLoco && PinchLoco.IsLocoGesture(left))
+        {
+            oc._solvedGrip = 0f;
+            oc._gripForce = 0f;
+            oc.isBelowGripThreshold = true;
+            return;
+        }
+
         float thumb = left ? _thumbL : _thumbR;
         float index = left ? _indexL : _indexR;
         float middle = left ? _middleL : _middleR;
@@ -450,7 +468,8 @@ public static class HandSync
         oc._gripForce = grip;
 
         float threshold = 0.5f;
-        try { threshold = OpenController.grabThreshold; } catch { /* default */ }
+        try { threshold = OpenController.grabThreshold; }
+        catch (Exception ex) { NerveLog.Warn("grabThreshold", ex); }
         oc.isBelowGripThreshold = grip < threshold;
     }
 
@@ -514,7 +533,10 @@ public static class HandSync
             if (NerveMod.ForceFullSkeleton && SpawnSettled)
                 ApplyJointRotations(anim, left);
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            NerveLog.Warn("ApplyAnimatorFingers", ex);
+        }
     }
 
     private static void ApplyJointRotations(HandPoseAnimator anim, bool left)
@@ -538,36 +560,58 @@ public static class HandSync
             {
                 space = left ? HandActionMap.LeftAnimSpace : HandActionMap.RightAnimSpace;
             }
-            catch { space = Quaternion.identity; }
+            catch
+            {
+                space = Quaternion.identity;
+            }
 
-            SetFingerJoint(anim.thumb1, rots[(int)HandBone.ThumbMetacarpal], space);
-            SetFingerJoint(anim.thumb2, rots[(int)HandBone.ThumbProximal], space);
-            SetFingerJoint(anim.thumb3, rots[(int)HandBone.ThumbDistal], space);
+            // XRHand.Rotations are absolute (tracking space). Convert to parent-relative
+            // before writing into Transform.localRotation.
+            int wrist = (int)HandBone.Carpals;
 
-            SetFingerJoint(anim.index1, rots[(int)HandBone.IndexProximal], space);
-            SetFingerJoint(anim.index2, rots[(int)HandBone.IndexIntermediate], space);
-            SetFingerJoint(anim.index3, rots[(int)HandBone.IndexDistal], space);
+            SetFingerJoint(anim.thumb1, LocalBone(rots, (int)HandBone.ThumbMetacarpal, wrist), space);
+            SetFingerJoint(anim.thumb2, LocalBone(rots, (int)HandBone.ThumbProximal, (int)HandBone.ThumbMetacarpal), space);
+            SetFingerJoint(anim.thumb3, LocalBone(rots, (int)HandBone.ThumbDistal, (int)HandBone.ThumbProximal), space);
 
-            SetFingerJoint(anim.middle1, rots[(int)HandBone.MiddleProximal], space);
-            SetFingerJoint(anim.middle2, rots[(int)HandBone.MiddleIntermediate], space);
-            SetFingerJoint(anim.middle3, rots[(int)HandBone.MiddleDistal], space);
+            SetFingerJoint(anim.index1, LocalBone(rots, (int)HandBone.IndexProximal, wrist), space);
+            SetFingerJoint(anim.index2, LocalBone(rots, (int)HandBone.IndexIntermediate, (int)HandBone.IndexProximal), space);
+            SetFingerJoint(anim.index3, LocalBone(rots, (int)HandBone.IndexDistal, (int)HandBone.IndexIntermediate), space);
 
-            SetFingerJoint(anim.ring1, rots[(int)HandBone.RingProximal], space);
-            SetFingerJoint(anim.ring2, rots[(int)HandBone.RingIntermediate], space);
-            SetFingerJoint(anim.ring3, rots[(int)HandBone.RingDistal], space);
+            SetFingerJoint(anim.middle1, LocalBone(rots, (int)HandBone.MiddleProximal, wrist), space);
+            SetFingerJoint(anim.middle2, LocalBone(rots, (int)HandBone.MiddleIntermediate, (int)HandBone.MiddleProximal), space);
+            SetFingerJoint(anim.middle3, LocalBone(rots, (int)HandBone.MiddleDistal, (int)HandBone.MiddleIntermediate), space);
 
-            SetFingerJoint(anim.pinky1, rots[(int)HandBone.PinkyProximal], space);
-            SetFingerJoint(anim.pinky2, rots[(int)HandBone.PinkyIntermediate], space);
-            SetFingerJoint(anim.pinky3, rots[(int)HandBone.PinkyDistal], space);
+            SetFingerJoint(anim.ring1, LocalBone(rots, (int)HandBone.RingProximal, wrist), space);
+            SetFingerJoint(anim.ring2, LocalBone(rots, (int)HandBone.RingIntermediate, (int)HandBone.RingProximal), space);
+            SetFingerJoint(anim.ring3, LocalBone(rots, (int)HandBone.RingDistal, (int)HandBone.RingIntermediate), space);
+
+            SetFingerJoint(anim.pinky1, LocalBone(rots, (int)HandBone.PinkyProximal, wrist), space);
+            SetFingerJoint(anim.pinky2, LocalBone(rots, (int)HandBone.PinkyIntermediate, (int)HandBone.PinkyProximal), space);
+            SetFingerJoint(anim.pinky3, LocalBone(rots, (int)HandBone.PinkyDistal, (int)HandBone.PinkyIntermediate), space);
         }
-        catch { /* optional overlay */ }
+        catch (Exception ex)
+        {
+            NerveLog.Warn("ApplyJointRotations", ex);
+        }
+    }
+
+    private static Quaternion LocalBone(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<Quaternion> rots, int bone, int parent)
+    {
+        Quaternion child = rots[bone];
+        Quaternion par = rots[parent];
+        if (IsUnset(child) || IsUnset(par))
+            return default;
+        return Quaternion.Inverse(par) * child;
+    }
+
+    private static bool IsUnset(Quaternion q)
+    {
+        return q.w == 0f && q.x == 0f && q.y == 0f && q.z == 0f;
     }
 
     private static void SetFingerJoint(Transform joint, Quaternion boneLocal, Quaternion animSpace)
     {
-        if (joint == null)
-            return;
-        if (boneLocal.w == 0f && boneLocal.x == 0f && boneLocal.y == 0f && boneLocal.z == 0f)
+        if (joint == null || IsUnset(boneLocal))
             return;
         joint.localRotation = animSpace * boneLocal;
     }
