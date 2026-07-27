@@ -18,6 +18,8 @@ Put the controllers down. Your hands drive the rig. Every finger.
 
 <br/><br/>
 
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.0.0"><img src="https://img.shields.io/badge/%20-Release_v1.0.0-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+&nbsp;
 <a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
