@@ -38,6 +38,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 | **Gestures** | Flip-off, fist, OK, point — rig mirrors you |
 | **Wrist** | Follows Quest palm while hands are tracked |
 | **Grip** | Pinch / fist maps to grab input |
+| **Walk** | Point hand + pinch thumb/index → move that way |
 
 ---
 
@@ -54,6 +55,7 @@ BoneMenu → NERVE
 | Sync Bones | On |
 | Full Skeleton | On |
 | Grip From Fingers | On |
+| Pinch Walk | On |
 
 ---
 
@@ -62,6 +64,7 @@ BoneMenu → NERVE
 1. Enable **BoneMenu → NERVE → Enabled**
 2. Set controllers down (Quest hand tracking kicks in)
 3. Move your fingers — the avatar hands follow
+4. **Walk:** aim with your hand, pinch thumb + index — you move that way
 
 Works best on **Meta Quest 3 / 3S** with hand tracking enabled in headset settings.
 
