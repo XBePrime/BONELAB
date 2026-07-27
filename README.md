@@ -1,16 +1,14 @@
 <div align="center">
 
-<img src="icon.png" alt="NERVE" width="148" />
-
 # NERVE
 
 **Bare-hand control for BONELAB — Quest hand tracking → full finger sync**
 
-Put the controllers down. Your hands drive the rig. Every finger — same curls Quest tracks.
+Put the controllers down. Your hands drive the rig.
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.1.8-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.0.0-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,9 +16,9 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.8"><img src="https://img.shields.io/badge/%20-Release_v1.1.8-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.0.0"><img src="https://img.shields.io/badge/%20-Release_v1.0.0-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/nerve-v1.0.0/Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
 
@@ -28,29 +26,31 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 ---
 
+## Required once — APK hand tracking
 
-## 1.1.8 — required APK patch
+Quest will **not** expose hands to BONELAB unless the APK declares Meta hand tracking.
+Without this, the log stays at `handData=0` / `ovrEnable=False` forever.
 
-Quest log proof: `handChar=0 handData=0 ovrEnable=False` and only the HMD device.
-**Meta will not enumerate hands** unless BONELAB's AndroidManifest declares `HAND_TRACKING`.
+1. Download **HandTrackApkPatch.zip** from the [v1.0.0 release](https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.0.0)
+2. Run it on your BONELAB APK → `*.handtrack.apk`
+3. Reinstall / re-patch with LemonLoader (re-sign)
+4. Allow **Hand Tracking** if Quest prompts
 
-1. Download **HandTrackApkPatch.zip** from the release
-2. Run it on your BONELAB APK → get `*.handtrack.apk`
-3. Reinstall / re-patch with LemonLoader
-4. Allow Hand Tracking if prompted
-5. Drop in `Nerve.dll` 1.1.8+
+```bash
+dotnet HandTrackApkPatch.dll /path/to/BONELAB.apk
+```
+
+---
 
 ## What it does
 
 | | |
 |---|---|
-| **Hand tracking** | Meta Quest 3 / 3S — direct `OVRPlugin` hand state (Marrow `XRHand` is dead on LemonLoader) |
-| **Per-finger sync** | Thumb · Index · Middle · Ring · Pinky — 1:1 curls, no smoothing |
-| **Joints** | Full skeleton overlay when available (26 bones) |
-| **Gestures** | Flip-off, fist, OK, point — rig mirrors you |
-| **Wrist** | Follows Quest palm while hands are tracked |
-| **Grip** | Pinch / fist maps to grab input |
-| **Walk** | Point hand + pinch thumb/index → move that way |
+| **Hand tracking** | Meta Quest 3 / 3S — Unity XR + OVRPlugin bridge |
+| **Per-finger sync** | Thumb · Index · Middle · Ring · Pinky |
+| **Wrist** | Follows tracked palm |
+| **Grip** | Pinch / fist → grab |
+| **Walk** | Point + pinch thumb/index → move |
 
 ---
 
@@ -73,13 +73,12 @@ BoneMenu → NERVE
 
 ## How to use
 
-1. Enable **BoneMenu → NERVE → Enabled**
-2. Set controllers down (Quest hand tracking kicks in)
-3. Move your fingers — the avatar hands follow
-4. **Walk:** point with your hand (index open), pinch with thumb — you move that way
-5. **Fist** = grab only, does **not** walk
-
-Works best on **Meta Quest 3 / 3S** with hand tracking enabled in headset settings.
+1. Finish the APK patch above
+2. `Nerve.dll` → `Mods/`
+3. **BoneMenu → NERVE → Enabled**
+4. Controllers down → fingers drive the avatar
+5. **Walk:** point (index open) + pinch thumb → move
+6. **Fist** = grab only (does not walk)
 
 ---
 
@@ -87,14 +86,17 @@ Works best on **Meta Quest 3 / 3S** with hand tracking enabled in headset settin
 
 1. MelonLoader / LemonLoader  
 2. [BoneLib](https://thunderstore.io/c/bonelab/p/gnonme/BoneLib/)  
-3. `Nerve.dll` → `Mods/`  
-4. **BoneMenu → NERVE**
+3. Patch APK with **HandTrackApkPatch** (once)  
+4. `Nerve.dll` → `Mods/`  
+5. **BoneMenu → NERVE**
+
+Verify in MelonLoader log: `handData>0` / `liveL=True` with controllers down.
 
 <div align="center">
 
 <br/>
 
-<a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Get_the_DLL-111827?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/nerve-v1.0.0/Nerve.dll"><img src="https://img.shields.io/badge/%20-Get_the_DLL-111827?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
 &nbsp;
 <a href="https://thunderstore.io/c/bonelab/p/gnonme/BoneLib/"><img src="https://img.shields.io/badge/%20-BoneLib-F59E0B?style=for-the-badge" height="44" /></a>
 &nbsp;
