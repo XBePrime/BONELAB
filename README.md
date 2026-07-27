@@ -18,6 +18,8 @@ NPCs · LabFusion players · BoneMenu
 
 <br/><br/>
 
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/v1.1.0"><img src="https://img.shields.io/badge/%20-Release_v1.1.0-E11D48?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+&nbsp;
 <a href="BePrimeAimbot.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
