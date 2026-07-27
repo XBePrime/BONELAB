@@ -10,7 +10,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.1.0-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.1.1-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,7 +18,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.0"><img src="https://img.shields.io/badge/%20-Release_v1.1.0-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.1"><img src="https://img.shields.io/badge/%20-Release_v1.1.1-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
@@ -64,7 +64,8 @@ BoneMenu → NERVE
 1. Enable **BoneMenu → NERVE → Enabled**
 2. Set controllers down (Quest hand tracking kicks in)
 3. Move your fingers — the avatar hands follow
-4. **Walk:** aim with your hand, pinch thumb + index — you move that way
+4. **Walk:** point with your hand (index open), pinch with thumb — you move that way
+5. **Fist** = grab only, does **not** walk
 
 Works best on **Meta Quest 3 / 3S** with hand tracking enabled in headset settings.
 

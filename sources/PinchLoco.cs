@@ -15,7 +15,7 @@ public static class PinchLoco
     private const float PinchStart = 0.42f;
     private const float PinchFull = 0.78f;
 
-    // Soft "pointing" bias: index more open than the other fingers.
+    // Point: index must stay open enough to count as aiming (not a fist).
     private const float PointIndexMax = 0.55f;
 
     [HarmonyPatch(typeof(OpenControllerRig), nameof(OpenControllerRig.OnUpdate))]
@@ -140,23 +140,21 @@ public static class PinchLoco
         }
         catch { /* ignore */ }
 
-        // Classic pinch: thumb + index curl together.
-        float pinch = Mathf.Min(thumb, index);
-
-        // Soft point gate — index not fully fist-closed vs the rest (aiming hand).
-        float others = (middle + ring + pinky) * (1f / 3f);
-        bool pointing = index <= PointIndexMax || index + 0.12f < others;
-
-        if (!pointing && pinch < PinchFull)
-        {
-            // Fist-only doesn't count as point+pinch.
-            return false;
-        }
-
-        if (pinch < PinchStart)
+        // Fist = grab only, never walk.
+        // (all fingers closed — including index buried in the palm)
+        bool isFist = index >= 0.70f && middle >= 0.70f && ring >= 0.70f && pinky >= 0.70f;
+        if (isFist)
             return false;
 
-        throttle = Mathf.InverseLerp(PinchStart, PinchFull, pinch);
+        // Point: index must stay relatively open (aiming), not a fist knuckle.
+        if (index > PointIndexMax)
+            return false;
+
+        // Pinch: thumb closes onto the pointed index. Throttle = thumb curl.
+        if (thumb < PinchStart)
+            return false;
+
+        throttle = Mathf.InverseLerp(PinchStart, PinchFull, thumb);
         throttle = Mathf.Clamp01(throttle);
         return throttle > 0.001f;
     }
