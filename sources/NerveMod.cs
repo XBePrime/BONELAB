@@ -18,8 +18,7 @@ namespace BePrime.Nerve;
 public class NerveMod : MelonMod
 {
     public static bool Enabled = true;
-    // Risky paths OFF by default — enable in BoneMenu after stable spawn.
-    public static bool SyncWrist;
+    public static bool SyncWrist = true;
     public static bool SyncBones;
     public static bool ForceFullSkeleton;
     public static bool GripFromFingers = true;
@@ -49,10 +48,11 @@ public class NerveMod : MelonMod
         {
             Prefs.Create();
             // Force safe defaults so old MelonPreferences can't re-enable crashy paths.
-            SyncWrist = false;
+            // Wrist ON by default now that OVR root pose is the source (Marrow IsTracking was dead).
+            SyncWrist = true;
             SyncBones = false;
             ForceFullSkeleton = false;
-            MelonLogger.Msg("NERVE safe defaults: Wrist/Bones/Skeleton OFF (enable in BoneMenu if needed)");
+            MelonLogger.Msg("NERVE defaults: Wrist ON (OVR), Bones/Skeleton OFF");
             Prefs.MarkDirty();
         }
         catch (Exception ex)
@@ -101,7 +101,7 @@ public class NerveMod : MelonMod
         if (_patchStage > 0 && now >= _nextHeartbeatAt)
         {
             _nextHeartbeatAt = now + 5f;
-            MelonLogger.Msg($"NERVE heartbeat stage={_patchStage} liveL={HandSync.LiveLeft} liveR={HandSync.LiveRight}");
+            MelonLogger.Msg($"NERVE heartbeat stage={_patchStage} liveL={HandSync.LiveLeft} liveR={HandSync.LiveRight} | {OvrHands.ProbeLine()}");
         }
 
         if (_patchStage == 0)
@@ -111,6 +111,8 @@ public class NerveMod : MelonMod
             if (!RigReady(ref _armAt))
                 return;
             ArmStage1_CurlsOnly();
+            OvrHands.EnsureConfigured();
+            MelonLogger.Msg("NERVE OVR probe: " + OvrHands.ProbeLine());
             return;
         }
 
@@ -141,14 +143,24 @@ public class NerveMod : MelonMod
 
     private void ArmStage1_CurlsOnly()
     {
-        MelonLogger.Msg("NERVE stage1 — patch OpenController.OnUpdate (curls only)");
+        MelonLogger.Msg("NERVE stage1 — patch OpenController curls + wrist (OVR)");
         try
         {
             PatchPostfix(typeof(OpenController), nameof(OpenController.OnUpdate), typeof(HandSync), "OnUpdatePatch");
+            // Wrist is often finalized in OnVrFixedUpdate after OnUpdate — patch it too.
+            try
+            {
+                PatchPostfix(typeof(OpenController), nameof(OpenController.OnVrFixedUpdate), typeof(HandSync), "OnVrFixedUpdatePatch");
+            }
+            catch (Exception wrEx)
+            {
+                MelonLogger.Warning($"NERVE OnVrFixedUpdate patch skipped: {wrEx.Message}");
+            }
+
             _patchStage = 1;
             _nextStageAt = Time.unscaledTime + StageGapSeconds;
             _nextHeartbeatAt = Time.unscaledTime + 2f;
-            MelonLogger.Msg("NERVE stage1 OK — if crash happens now, it's curl sync");
+            MelonLogger.Msg("NERVE stage1 OK — OVR hand bridge armed");
         }
         catch (Exception ex)
         {
@@ -166,7 +178,7 @@ public class NerveMod : MelonMod
             PatchPostfix(typeof(OpenControllerRig), nameof(OpenControllerRig.OnUpdate), typeof(PinchLoco), "RigOnUpdatePatch");
             _patchStage = 2;
             _nextHeartbeatAt = Time.unscaledTime + 2f;
-            MelonLogger.Msg("NERVE stage2 OK — curls + pinch walk live (wrist/skeleton still OFF)");
+            MelonLogger.Msg("NERVE stage2 OK — curls + pinch walk + OVR wrist");
         }
         catch (Exception ex)
         {
@@ -213,8 +225,9 @@ public class NerveMod : MelonMod
 
     public override void OnLateUpdate()
     {
-        if (_patchStage < 1 || !SyncBones)
+        if (_patchStage < 1)
             return;
+        // Always drive OVR→controllers in late update (even if SyncBones is off).
         HandSync.LateTick();
     }
 

@@ -7,6 +7,7 @@ using Il2CppSLZ.Marrow.Interaction;
 using Il2CppSLZ.Marrow.Utilities;
 using MelonLoader;
 using UnityEngine;
+// BaseController / OpenController live in Il2CppSLZ.Marrow
 
 namespace BePrime.Nerve;
 
@@ -118,6 +119,10 @@ public static class HandSync
 
         try
         {
+            // Independent of OpenController.OnUpdate — controllers on the floor
+            // may stop feeding that path, but OVR hands are still live.
+            DriveFromPlayerControllers();
+
             if (_liveL || Holding(_lastTrackLeft))
                 ApplyAnimatorFingers(true);
             if (_liveR || Holding(_lastTrackRight))
@@ -127,6 +132,34 @@ public static class HandSync
         {
             NerveLog.Warn("LateTick", ex);
         }
+    }
+
+    /// <summary>
+    /// Push OVR curls/wrist onto the avatar controllers every frame.
+    /// </summary>
+    public static void DriveFromPlayerControllers()
+    {
+        if (!SessionReady)
+            return;
+
+        try
+        {
+            ApplyToBase(Player.LeftController);
+            ApplyToBase(Player.RightController);
+        }
+        catch (Exception ex)
+        {
+            NerveLog.Warn("DriveFromPlayerControllers", ex);
+        }
+    }
+
+    private static void ApplyToBase(BaseController bc)
+    {
+        if (bc == null)
+            return;
+        OpenController oc = bc.TryCast<OpenController>();
+        if (oc != null)
+            SyncAfterStock(oc);
     }
 
     // Stock ProcessFingers always runs. We only stamp Quest curls afterwards.
@@ -152,7 +185,8 @@ public static class HandSync
     [HarmonyPatch(typeof(OpenController), nameof(OpenController.OnVrFixedUpdate))]
     private static class OnVrFixedUpdatePatch
     {
-        private static void Postfix(OpenController __instance)
+        // Signature must match: OnVrFixedUpdate(Vector3 headPos, float deltaTime)
+        private static void Postfix(OpenController __instance, Vector3 headPos, float deltaTime)
         {
             if (!SessionReady || !NerveMod.SyncWrist || __instance == null)
                 return;
@@ -162,9 +196,10 @@ public static class HandSync
                 if (!TryResolve(__instance, out bool left, out XRHand xrHand, out _))
                     return;
 
-                if (IsHandTracked(xrHand))
+                if (SampleHand(left, xrHand, out Vector3 pos, out Quaternion rot,
+                        out float thumb, out float index, out float middle, out float ring, out float pinky))
                 {
-                    CachePose(left, xrHand);
+                    StorePose(left, pos, rot, thumb, index, middle, ring, pinky);
                     MarkLive(left);
                     ApplyWrist(__instance, left);
                 }
@@ -230,19 +265,19 @@ public static class HandSync
         if (!TryResolve(oc, out bool left, out XRHand xrHand, out _))
             return;
 
-        if (IsHandTracked(xrHand))
+        if (SampleHand(left, xrHand, out Vector3 pos, out Quaternion rot,
+                out float thumb, out float index, out float middle, out float ring, out float pinky))
         {
-            CachePose(left, xrHand);
+            StorePose(left, pos, rot, thumb, index, middle, ring, pinky);
             MarkLive(left);
 
             if (!_loggedFirstSync)
             {
                 _loggedFirstSync = true;
-                MelonLogger.Msg($"NERVE first hand sample ({(left ? "L" : "R")}) curls T={xrHand.ThumbCurl:0.00} I={xrHand.IndexCurl:0.00}");
+                MelonLogger.Msg($"NERVE first hand OK ({(left ? "L" : "R")}) T={thumb:0.00} I={index:0.00} M={middle:0.00} | {OvrHands.ProbeLine()}");
             }
 
-            // Native skeleton APIs — only if user explicitly enabled Full Skeleton.
-            if (NerveMod.ForceFullSkeleton && SpawnSettled)
+            if (NerveMod.ForceFullSkeleton && SpawnSettled && xrHand != null)
                 EnsureFullUpdate(xrHand, left);
         }
         else if (!Holding(left ? _lastTrackLeft : _lastTrackRight))
@@ -252,7 +287,6 @@ public static class HandSync
             return;
         }
 
-        // Minimal safe path: float curls only.
         oc._noFingies = false;
         ApplyCurls(oc, left);
 
@@ -262,7 +296,7 @@ public static class HandSync
         if (NerveMod.SyncWrist)
             ApplyWrist(oc, left);
 
-        if (NerveMod.ForceFullSkeleton && SpawnSettled && IsHandTracked(xrHand))
+        if (NerveMod.ForceFullSkeleton && SpawnSettled && xrHand != null)
             TryDrawSkeleton(oc, xrHand);
     }
 
@@ -274,20 +308,22 @@ public static class HandSync
 
         try
         {
-            if (oc == null || !MarrowGame.IsInitialized)
-                return false;
-
-            XRApi xr = MarrowGame.xr;
-            if (xr == null)
+            if (oc == null)
                 return false;
 
             Handedness h = oc.handedness;
             if (h == Handedness.LEFT) left = true;
             else if (h != Handedness.RIGHT) return false;
 
-            xrHand = left ? xr.LeftHand : xr.RightHand;
-            xrCtrl = left ? xr.LeftController : xr.RightController;
-            return xrHand != null;
+            // Marrow XR hands may be null / dead on Quest — OVR path still works.
+            if (MarrowGame.IsInitialized && MarrowGame.xr != null)
+            {
+                XRApi xr = MarrowGame.xr;
+                xrHand = left ? xr.LeftHand : xr.RightHand;
+                xrCtrl = left ? xr.LeftController : xr.RightController;
+            }
+
+            return true;
         }
         catch
         {
@@ -331,17 +367,74 @@ public static class HandSync
 
     private static bool IsHandTracked(XRHand hand)
     {
-        if (hand == null)
-            return false;
+        // Kept for call sites that only have XRHand; real path is SampleHand/OVR.
+        try
+        {
+            if (hand != null && hand.IsTracking)
+                return true;
+        }
+        catch { /* ignore */ }
+        return false;
+    }
+
+    /// <summary>
+    /// Sample hand pose/curls: OVR first (Quest truth), Marrow XRHand as supplement.
+    /// </summary>
+    private static bool SampleHand(bool left, XRHand marrowHand, out Vector3 pos, out Quaternion rot,
+        out float thumb, out float index, out float middle, out float ring, out float pinky)
+    {
+        pos = default;
+        rot = Quaternion.identity;
+        thumb = index = middle = ring = pinky = 0f;
+
+        bool ovr = OvrHands.TrySample(left, out pos, out rot, out thumb, out index, out middle, out ring, out pinky);
 
         try
         {
-            // Avoid Il2Cpp `is` casts — they can fault on Quest during early XR bring-up.
-            return hand.IsTracking;
+            if (marrowHand != null)
+            {
+                bool marrowTrack = false;
+                try { marrowTrack = marrowHand.IsTracking; } catch { /* ignore */ }
+
+                float mt = Clamp01(marrowHand.ThumbCurl);
+                float mi = Clamp01(marrowHand.IndexCurl);
+                float mm = Clamp01(marrowHand.MiddleCurl);
+                float mr = Clamp01(marrowHand.RingCurl);
+                float mp = Clamp01(marrowHand.PinkyCurl);
+                float marrowEnergy = mt + mi + mm + mr + mp;
+
+                if (marrowTrack || marrowEnergy > 0.05f)
+                {
+                    thumb = mt; index = mi; middle = mm; ring = mr; pinky = mp;
+                    if (marrowTrack)
+                    {
+                        pos = marrowHand.Position;
+                        rot = marrowHand.Rotation;
+                    }
+                    return true;
+                }
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            return false;
+            NerveLog.Warn("SampleHand marrow", ex);
+        }
+
+        return ovr;
+    }
+
+    private static void StorePose(bool left, Vector3 pos, Quaternion rot,
+        float thumb, float index, float middle, float ring, float pinky)
+    {
+        if (left)
+        {
+            _thumbL = thumb; _indexL = index; _middleL = middle; _ringL = ring; _pinkyL = pinky;
+            _posL = pos; _rotL = rot;
+        }
+        else
+        {
+            _thumbR = thumb; _indexR = index; _middleR = middle; _ringR = ring; _pinkyR = pinky;
+            _posR = pos; _rotR = rot;
         }
     }
 

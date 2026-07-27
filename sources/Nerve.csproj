@@ -28,6 +28,7 @@
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(RefsRoot)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(RefsRoot)/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2CppSLZ.Marrow"><HintPath>$(RefsRoot)/Il2CppSLZ.Marrow.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppOculus.VR"><HintPath>$(RefsRoot)/Il2CppOculus.VR.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
 </Project>

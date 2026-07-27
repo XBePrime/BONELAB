@@ -10,7 +10,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.1.5-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.1.6-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,7 +18,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.5"><img src="https://img.shields.io/badge/%20-Release_v1.1.5-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.6"><img src="https://img.shields.io/badge/%20-Release_v1.1.6-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
@@ -28,11 +28,22 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 ---
 
+
+## 1.1.6
+
+Quest/LemonLoader never sets Marrow `XRHand.IsTracking`, so older builds never took over.
+**1.1.6** reads hands straight from **OVRPlugin**, drives curls every late-update, and keeps wrist patched after `OnVrFixedUpdate`.
+
+In MelonLoader log look for:
+`NERVE OVR: GetHandTrackingEnabled=TRUE` and heartbeat `liveL=True` / `ovrEnable=True L=True`.
+
+If `GetHandTrackingEnabled=FALSE` — enable **Hand Tracking** in Quest settings.
+
 ## What it does
 
 | | |
 |---|---|
-| **Hand tracking** | Meta Quest 3 / 3S — same `XRHand` buffers Quest feeds the game |
+| **Hand tracking** | Meta Quest 3 / 3S — direct `OVRPlugin` hand state (Marrow `XRHand` is dead on LemonLoader) |
 | **Per-finger sync** | Thumb · Index · Middle · Ring · Pinky — 1:1 curls, no smoothing |
 | **Joints** | Full skeleton overlay when available (26 bones) |
 | **Gestures** | Flip-off, fist, OK, point — rig mirrors you |
@@ -52,8 +63,8 @@ BoneMenu → NERVE
 |--------|---------|
 | Enabled | On |
 | Sync Wrist | On |
-| Sync Bones | On |
-| Full Skeleton | On |
+| Sync Bones | Off (enable if needed) |
+| Full Skeleton | Off (enable if needed) |
 | Grip From Fingers | On |
 | Pinch Walk | On |
 
