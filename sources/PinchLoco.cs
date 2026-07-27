@@ -23,12 +23,12 @@ public static class PinchLoco
     {
         private static void Postfix(OpenControllerRig __instance)
         {
-            if (!NerveMod.Enabled || !NerveMod.PinchLoco || __instance == null)
+            if (!HandSync.SessionReady || !NerveMod.PinchLoco || __instance == null)
                 return;
 
             try
             {
-                if (!Player.HandsExist || Player.Head == null)
+                if (Player.Head == null || Player.ControllerRig == null)
                     return;
 
                 if (!TryBuildAxis(out Vector2 axis, out bool active))

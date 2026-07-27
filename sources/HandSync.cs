@@ -11,10 +11,8 @@ using UnityEngine;
 namespace BePrime.Nerve;
 
 /// <summary>
-/// Quest-accurate hand bridge.
-/// When XR hand tracking is live, force the stock hand-tracked finger path and
-/// overwrite curls / wrist from the same XRHand buffers Quest feeds the game.
-/// No smoothing — values are written 1:1 every controller update + LateUpdate.
+/// Quest hand bridge — curl/wrist sync after stock OpenController update.
+/// All hooks no-op until the level + player rig are ready (avoids native spawn crashes).
 /// </summary>
 public static class HandSync
 {
@@ -25,12 +23,27 @@ public static class HandSync
     private static float _lastTrackRight = -999f;
     private const float TrackHoldSeconds = 0.10f;
 
-    // Latest Quest curls / wrist (written from XRHand, read by patches + LateUpdate).
+    // Don't touch XR full-skeleton / draw APIs until spawn settles.
+    private const float SpawnGraceSeconds = 2.0f;
+    private static float _levelLoadedAt = -999f;
+
     private static float _thumbL, _indexL, _middleL, _ringL, _pinkyL;
     private static float _thumbR, _indexR, _middleR, _ringR, _pinkyR;
     private static Vector3 _posL, _posR;
     private static Quaternion _rotL = Quaternion.identity, _rotR = Quaternion.identity;
     private static bool _liveL, _liveR;
+
+    public static void OnLevelLoaded()
+    {
+        Reset();
+        _levelLoadedAt = Time.unscaledTime;
+    }
+
+    public static void OnLevelUnloaded()
+    {
+        Reset();
+        _levelLoadedAt = -999f;
+    }
 
     public static void Reset()
     {
@@ -47,12 +60,15 @@ public static class HandSync
         if (enabled)
             return;
 
-        XRApi xr = MarrowGame.xr;
-        if (xr != null)
+        try
         {
-            TryStopFullUpdate(xr.LeftHand);
-            TryStopFullUpdate(xr.RightHand);
+            if (MarrowGame.IsInitialized && MarrowGame.xr != null)
+            {
+                TryStopFullUpdate(MarrowGame.xr.LeftHand);
+                TryStopFullUpdate(MarrowGame.xr.RightHand);
+            }
         }
+        catch { /* ignore */ }
 
         _fullUpdateLeft = false;
         _fullUpdateRight = false;
@@ -60,109 +76,61 @@ public static class HandSync
         _liveR = false;
     }
 
-    /// <summary>LateUpdate pass — re-assert animator curls after art-rig solve.</summary>
-    public static void LateTick()
+    /// <summary>True only when it's safe to touch the player rig / XR hands.</summary>
+    public static bool SessionReady
     {
-        if (!NerveMod.Enabled)
-            return;
-
-        if (_liveL || Holding(_lastTrackLeft))
-            ApplyAnimatorFingers(true);
-        if (_liveR || Holding(_lastTrackRight))
-            ApplyAnimatorFingers(false);
-    }
-
-    // ── Force hand-tracked finger path whenever Quest hands are live ─────────
-
-    [HarmonyPatch(typeof(OpenController), nameof(OpenController.ProcessFingers))]
-    private static class ProcessFingersPatch
-    {
-        private static bool Prefix(OpenController __instance)
+        get
         {
-            if (!NerveMod.Enabled || __instance == null)
-                return true;
-
-            if (!TryResolve(__instance, out bool left, out XRHand xrHand, out XRController xrCtrl))
-                return true;
-
-            EnsureFullUpdate(xrHand, left);
-
-            if (!IsHandTracked(xrHand))
-                return true; // controllers / fallback — let stock logic run
-
-            // Quest hands are live → exclusive hand-tracked path (skip grip/trigger curl mash).
+            if (!NerveMod.Enabled)
+                return false;
+            if (_levelLoadedAt < 0f)
+                return false;
             try
             {
-                CachePose(left, xrHand);
-                MarkLive(left);
-
-                __instance._noFingies = false;
-                __instance._runUpdates = true;
-
-                if (xrCtrl != null)
-                    __instance.ProcessHandTrackedFingers(xrCtrl, xrHand);
-
-                // Re-assert exact Quest curls after stock mapping (no smoothing).
-                ApplyCurls(__instance, left);
-
-                if (NerveMod.GripFromFingers)
-                    ApplyGrip(__instance, left);
-
-                if (NerveMod.SyncWrist)
-                    ApplyWrist(__instance, left);
-
-                if (NerveMod.ForceFullSkeleton)
-                    TryDrawSkeleton(__instance, xrHand);
-
-                return false; // skip original ProcessFingers
+                if (!MarrowGame.IsInitialized || MarrowGame.xr == null)
+                    return false;
+                if (!Player.HandsExist || Player.ControllerRig == null)
+                    return false;
             }
-            catch (Exception ex)
+            catch
             {
-                MelonLogger.Warning($"NERVE ProcessFingers: {ex.Message}");
-                return true;
+                return false;
             }
+
+            return true;
         }
     }
 
-    // Safety net: if something else rewrote curls after ProcessFingers, stamp Quest values again.
+    private static bool SpawnSettled =>
+        _levelLoadedAt >= 0f && (Time.unscaledTime - _levelLoadedAt) >= SpawnGraceSeconds;
+
+    public static void LateTick()
+    {
+        if (!SessionReady || !SpawnSettled)
+            return;
+
+        try
+        {
+            if (_liveL || Holding(_lastTrackLeft))
+                ApplyAnimatorFingers(true);
+            if (_liveR || Holding(_lastTrackRight))
+                ApplyAnimatorFingers(false);
+        }
+        catch { /* never crash render loop */ }
+    }
+
+    // Stock ProcessFingers always runs. We only stamp Quest curls afterwards.
     [HarmonyPatch(typeof(OpenController), nameof(OpenController.OnUpdate))]
     private static class OnUpdatePatch
     {
         private static void Postfix(OpenController __instance)
         {
-            if (!NerveMod.Enabled || __instance == null)
+            if (!SessionReady || __instance == null)
                 return;
 
             try
             {
-                if (!TryResolve(__instance, out bool left, out XRHand xrHand, out _))
-                    return;
-
-                EnsureFullUpdate(xrHand, left);
-
-                if (IsHandTracked(xrHand))
-                {
-                    CachePose(left, xrHand);
-                    MarkLive(left);
-                }
-                else if (!Holding(left ? _lastTrackLeft : _lastTrackRight))
-                {
-                    if (left) _liveL = false;
-                    else _liveR = false;
-                    return;
-                }
-
-                __instance._noFingies = false;
-                ApplyCurls(__instance, left);
-
-                if (NerveMod.GripFromFingers)
-                    ApplyGrip(__instance, left);
-
-                if (NerveMod.SyncWrist)
-                    ApplyWrist(__instance, left);
-
-                if (NerveMod.ForceFullSkeleton && IsHandTracked(xrHand))
-                    TryDrawSkeleton(__instance, xrHand);
+                SyncAfterStock(__instance);
             }
             catch (Exception ex)
             {
@@ -171,13 +139,12 @@ public static class HandSync
         }
     }
 
-    // Physics-rate wrist so the phys hand tracks Quest palm without frame lag.
     [HarmonyPatch(typeof(OpenController), nameof(OpenController.OnVrFixedUpdate))]
     private static class OnVrFixedUpdatePatch
     {
         private static void Postfix(OpenController __instance)
         {
-            if (!NerveMod.Enabled || !NerveMod.SyncWrist || __instance == null)
+            if (!SessionReady || !NerveMod.SyncWrist || __instance == null)
                 return;
 
             try
@@ -196,14 +163,10 @@ public static class HandSync
                     ApplyWrist(__instance, left);
                 }
             }
-            catch
-            {
-                // never break physics update
-            }
+            catch { /* never break physics */ }
         }
     }
 
-    // Getters — anything reading curl axes gets live Quest values.
     [HarmonyPatch(typeof(OpenController), nameof(OpenController.GetThumbCurlAxis))]
     private static class ThumbCurlPatch
     {
@@ -249,7 +212,39 @@ public static class HandSync
         }
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    private static void SyncAfterStock(OpenController oc)
+    {
+        if (!TryResolve(oc, out bool left, out XRHand xrHand, out _))
+            return;
+
+        if (IsHandTracked(xrHand))
+        {
+            CachePose(left, xrHand);
+            MarkLive(left);
+
+            // Full skeleton APIs are native — only after spawn grace.
+            if (SpawnSettled && NerveMod.ForceFullSkeleton)
+                EnsureFullUpdate(xrHand, left);
+        }
+        else if (!Holding(left ? _lastTrackLeft : _lastTrackRight))
+        {
+            if (left) _liveL = false;
+            else _liveR = false;
+            return;
+        }
+
+        oc._noFingies = false;
+        ApplyCurls(oc, left);
+
+        if (NerveMod.GripFromFingers)
+            ApplyGrip(oc, left);
+
+        if (NerveMod.SyncWrist)
+            ApplyWrist(oc, left);
+
+        if (SpawnSettled && NerveMod.ForceFullSkeleton && IsHandTracked(xrHand))
+            TryDrawSkeleton(oc, xrHand);
+    }
 
     private static bool TryResolve(OpenController oc, out bool left, out XRHand xrHand, out XRController xrCtrl)
     {
@@ -257,43 +252,61 @@ public static class HandSync
         xrHand = null;
         xrCtrl = null;
 
-        Handedness h = oc.handedness;
-        if (h == Handedness.LEFT) left = true;
-        else if (h != Handedness.RIGHT) return false;
+        try
+        {
+            if (oc == null || !MarrowGame.IsInitialized)
+                return false;
 
-        XRApi xr = MarrowGame.xr;
-        if (xr == null) return false;
+            XRApi xr = MarrowGame.xr;
+            if (xr == null)
+                return false;
 
-        xrHand = left ? xr.LeftHand : xr.RightHand;
-        xrCtrl = left ? xr.LeftController : xr.RightController;
-        return xrHand != null;
+            Handedness h = oc.handedness;
+            if (h == Handedness.LEFT) left = true;
+            else if (h != Handedness.RIGHT) return false;
+
+            xrHand = left ? xr.LeftHand : xr.RightHand;
+            xrCtrl = left ? xr.LeftController : xr.RightController;
+            return xrHand != null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool TryCurl(OpenController oc, int finger, out float value)
     {
         value = 0f;
-        if (!NerveMod.Enabled || oc == null)
+        if (!SessionReady || oc == null)
             return false;
 
-        Handedness h = oc.handedness;
-        bool left = h == Handedness.LEFT;
-        if (!left && h != Handedness.RIGHT)
-            return false;
-
-        bool live = left ? _liveL : _liveR;
-        if (!live && !Holding(left ? _lastTrackLeft : _lastTrackRight))
-            return false;
-
-        value = finger switch
+        try
         {
-            0 => left ? _thumbL : _thumbR,
-            1 => left ? _indexL : _indexR,
-            2 => left ? _middleL : _middleR,
-            3 => left ? _ringL : _ringR,
-            4 => left ? _pinkyL : _pinkyR,
-            _ => 0f
-        };
-        return true;
+            Handedness h = oc.handedness;
+            bool left = h == Handedness.LEFT;
+            if (!left && h != Handedness.RIGHT)
+                return false;
+
+            bool live = left ? _liveL : _liveR;
+            if (!live && !Holding(left ? _lastTrackLeft : _lastTrackRight))
+                return false;
+
+            value = finger switch
+            {
+                0 => left ? _thumbL : _thumbR,
+                1 => left ? _indexL : _indexR,
+                2 => left ? _middleL : _middleR,
+                3 => left ? _ringL : _ringR,
+                4 => left ? _pinkyL : _pinkyR,
+                _ => 0f
+            };
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsHandTracked(XRHand hand)
@@ -303,12 +316,13 @@ public static class HandSync
 
         try
         {
-            if (hand is Il2CppSLZ.Marrow.Input.Oculus.OculusHandActionMap oculus && oculus.IsTracking)
-                return true;
+            // Avoid Il2Cpp `is` casts — they can fault on Quest during early XR bring-up.
+            return hand.IsTracking;
         }
-        catch { /* fall through */ }
-
-        return hand.IsTracking;
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool Holding(float lastTrackTime)
@@ -333,18 +347,24 @@ public static class HandSync
 
     private static void EnsureFullUpdate(XRHand hand, bool left)
     {
-        // Retry until StartFullUpdate sticks — needed for per-bone Positions/Rotations.
         bool armed = left ? _fullUpdateLeft : _fullUpdateRight;
-        if (armed && hand._isFullUpdate)
+        if (armed)
             return;
 
         try
         {
+            if (hand._isFullUpdate)
+            {
+                if (left) _fullUpdateLeft = true;
+                else _fullUpdateRight = true;
+                return;
+            }
+
             hand.StartFullUpdate();
             if (left) _fullUpdateLeft = true;
             else _fullUpdateRight = true;
         }
-        catch { /* backend may not support full skeleton */ }
+        catch { /* backend may not support it */ }
     }
 
     private static void TryStopFullUpdate(XRHand hand)
@@ -355,7 +375,6 @@ public static class HandSync
 
     private static void CachePose(bool left, XRHand hand)
     {
-        // Exact Quest curl buffers — clamp only to legal [0,1], no remap/curve.
         float thumb = Clamp01(hand.ThumbCurl);
         float index = Clamp01(hand.IndexCurl);
         float middle = Clamp01(hand.MiddleCurl);
@@ -365,21 +384,23 @@ public static class HandSync
         Vector3 pos = hand.Position;
         Quaternion rot = hand.Rotation;
 
-        // Prefer wrist/root bone when full skeleton is streaming (closer to Quest palm).
-        try
+        // Root bone only after spawn grace + full skeleton — GetHandBone is native.
+        if (SpawnSettled)
         {
-            if (hand._isFullUpdate)
+            try
             {
-                SimpleTransform root = hand.GetHandBone(hand, HandBone.Root);
-                // Zero quaternion (0,0,0,0) means unset; identity/any real quat is fine.
-                if (root.rotation.w != 0f || root.rotation.x != 0f || root.rotation.y != 0f || root.rotation.z != 0f)
+                if (hand._isFullUpdate)
                 {
-                    pos = root.position;
-                    rot = root.rotation;
+                    SimpleTransform root = hand.GetHandBone(hand, HandBone.Root);
+                    if (root.rotation.w != 0f || root.rotation.x != 0f || root.rotation.y != 0f || root.rotation.z != 0f)
+                    {
+                        pos = root.position;
+                        rot = root.rotation;
+                    }
                 }
             }
+            catch { /* device pose fallback */ }
         }
-        catch { /* Position/Rotation on XRDevice is the fallback */ }
 
         if (left)
         {
@@ -421,7 +442,6 @@ public static class HandSync
         float ring = left ? _ringL : _ringR;
         float pinky = left ? _pinkyL : _pinkyR;
 
-        // Quest-style: pinch (thumb+index) or fist — same signals Oculus exposes as curls.
         float pinch = Mathf.Min(thumb, index);
         float fist = (middle + ring + pinky) * (1f / 3f);
         float grip = Mathf.Clamp01(Mathf.Max(pinch, fist));
@@ -436,8 +456,6 @@ public static class HandSync
 
     private static void ApplyWrist(OpenController oc, bool left)
     {
-        // While Quest hands are live, wrist always follows the hand — even if a
-        // controller still reports "connected" on the floor.
         Vector3 pos = left ? _posL : _posR;
         Quaternion rot = left ? _rotL : _rotR;
         oc._localTrackPos = pos;
@@ -448,6 +466,8 @@ public static class HandSync
     {
         try
         {
+            if (!hand._isFullUpdate)
+                return;
             var positions = hand.Positions;
             var rotations = hand.Rotations;
             if (positions == null || rotations == null)
@@ -480,7 +500,6 @@ public static class HandSync
             float ring = left ? _ringL : _ringR;
             float pinky = left ? _pinkyL : _pinkyR;
 
-            // Drive both the live curl state and the pose solver from Quest values.
             anim._currentThumb = thumb;
             anim._currentIndex = index;
             anim._currentMiddle = middle;
@@ -491,56 +510,63 @@ public static class HandSync
             anim.SetFingers(thumb, index, middle, ring, pinky);
             anim.ApplyPoseToTransforms();
 
-            // Per-joint overlay from Quest skeleton (same buffers DrawSkeletonHand uses).
-            if (NerveMod.ForceFullSkeleton)
+            // Joint overlay is the riskiest path — only after grace + full skeleton.
+            if (NerveMod.ForceFullSkeleton && SpawnSettled)
                 ApplyJointRotations(anim, left);
         }
-        catch { /* best-effort visual */ }
+        catch { /* best-effort */ }
     }
 
     private static void ApplyJointRotations(HandPoseAnimator anim, bool left)
     {
-        XRApi xr = MarrowGame.xr;
-        if (xr == null)
-            return;
+        try
+        {
+            XRApi xr = MarrowGame.xr;
+            if (xr == null)
+                return;
 
-        XRHand hand = left ? xr.LeftHand : xr.RightHand;
-        if (hand == null || !hand._isFullUpdate)
-            return;
+            XRHand hand = left ? xr.LeftHand : xr.RightHand;
+            if (hand == null || !hand._isFullUpdate)
+                return;
 
-        var rots = hand.Rotations;
-        if (rots == null || rots.Length < 26)
-            return;
+            var rots = hand.Rotations;
+            if (rots == null || rots.Length < 26)
+                return;
 
-        // HandActionMap stores bone locals after CalcLocalPose; AnimSpace aligns to avatar.
-        Quaternion space = left ? HandActionMap.LeftAnimSpace : HandActionMap.RightAnimSpace;
+            Quaternion space = Quaternion.identity;
+            try
+            {
+                space = left ? HandActionMap.LeftAnimSpace : HandActionMap.RightAnimSpace;
+            }
+            catch { space = Quaternion.identity; }
 
-        SetFingerJoint(anim.thumb1, rots[(int)HandBone.ThumbMetacarpal], space);
-        SetFingerJoint(anim.thumb2, rots[(int)HandBone.ThumbProximal], space);
-        SetFingerJoint(anim.thumb3, rots[(int)HandBone.ThumbDistal], space);
+            SetFingerJoint(anim.thumb1, rots[(int)HandBone.ThumbMetacarpal], space);
+            SetFingerJoint(anim.thumb2, rots[(int)HandBone.ThumbProximal], space);
+            SetFingerJoint(anim.thumb3, rots[(int)HandBone.ThumbDistal], space);
 
-        SetFingerJoint(anim.index1, rots[(int)HandBone.IndexProximal], space);
-        SetFingerJoint(anim.index2, rots[(int)HandBone.IndexIntermediate], space);
-        SetFingerJoint(anim.index3, rots[(int)HandBone.IndexDistal], space);
+            SetFingerJoint(anim.index1, rots[(int)HandBone.IndexProximal], space);
+            SetFingerJoint(anim.index2, rots[(int)HandBone.IndexIntermediate], space);
+            SetFingerJoint(anim.index3, rots[(int)HandBone.IndexDistal], space);
 
-        SetFingerJoint(anim.middle1, rots[(int)HandBone.MiddleProximal], space);
-        SetFingerJoint(anim.middle2, rots[(int)HandBone.MiddleIntermediate], space);
-        SetFingerJoint(anim.middle3, rots[(int)HandBone.MiddleDistal], space);
+            SetFingerJoint(anim.middle1, rots[(int)HandBone.MiddleProximal], space);
+            SetFingerJoint(anim.middle2, rots[(int)HandBone.MiddleIntermediate], space);
+            SetFingerJoint(anim.middle3, rots[(int)HandBone.MiddleDistal], space);
 
-        SetFingerJoint(anim.ring1, rots[(int)HandBone.RingProximal], space);
-        SetFingerJoint(anim.ring2, rots[(int)HandBone.RingIntermediate], space);
-        SetFingerJoint(anim.ring3, rots[(int)HandBone.RingDistal], space);
+            SetFingerJoint(anim.ring1, rots[(int)HandBone.RingProximal], space);
+            SetFingerJoint(anim.ring2, rots[(int)HandBone.RingIntermediate], space);
+            SetFingerJoint(anim.ring3, rots[(int)HandBone.RingDistal], space);
 
-        SetFingerJoint(anim.pinky1, rots[(int)HandBone.PinkyProximal], space);
-        SetFingerJoint(anim.pinky2, rots[(int)HandBone.PinkyIntermediate], space);
-        SetFingerJoint(anim.pinky3, rots[(int)HandBone.PinkyDistal], space);
+            SetFingerJoint(anim.pinky1, rots[(int)HandBone.PinkyProximal], space);
+            SetFingerJoint(anim.pinky2, rots[(int)HandBone.PinkyIntermediate], space);
+            SetFingerJoint(anim.pinky3, rots[(int)HandBone.PinkyDistal], space);
+        }
+        catch { /* optional overlay */ }
     }
 
     private static void SetFingerJoint(Transform joint, Quaternion boneLocal, Quaternion animSpace)
     {
         if (joint == null)
             return;
-        // Skip unset bones (Oculus can leave tips/metacarpals empty some frames).
         if (boneLocal.w == 0f && boneLocal.x == 0f && boneLocal.y == 0f && boneLocal.z == 0f)
             return;
         joint.localRotation = animSpace * boneLocal;
@@ -553,7 +579,6 @@ public static class HandSync
         return v;
     }
 
-    /// <summary>Read latest cached Quest hand pose/curls for locomotion / other systems.</summary>
     public static bool TryGetHand(
         bool left,
         out Vector3 position,

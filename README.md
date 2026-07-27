@@ -10,7 +10,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.1.1-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.1.2-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,7 +18,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.1"><img src="https://img.shields.io/badge/%20-Release_v1.1.1-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.2"><img src="https://img.shields.io/badge/%20-Release_v1.1.2-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;

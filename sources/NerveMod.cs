@@ -1,6 +1,5 @@
 using System;
 using BoneLib;
-using HarmonyLib;
 using MelonLoader;
 using UnityEngine;
 using BoneMenuPage = BoneLib.BoneMenu.Page;
@@ -27,14 +26,23 @@ public class NerveMod : MelonMod
     {
         Prefs.Create();
 
-        HarmonyInstance.PatchAll(typeof(HandSync).Assembly);
+        // Patch only our types — never the whole assembly.
+        try
+        {
+            HarmonyInstance.PatchAll(typeof(HandSync));
+            HarmonyInstance.PatchAll(typeof(PinchLoco));
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Error($"NERVE Harmony patch failed: {ex}");
+        }
 
-        Hooking.OnLevelLoaded += _ => HandSync.Reset();
-        Hooking.OnLevelUnloaded += HandSync.Reset;
+        Hooking.OnLevelLoaded += _ => HandSync.OnLevelLoaded();
+        Hooking.OnLevelUnloaded += HandSync.OnLevelUnloaded;
 
         BuildMenu();
 
-        MelonLogger.Msg("NERVE ready — hands drive the rig. Pinch+point to walk.");
+        MelonLogger.Msg("NERVE ready — hooks idle until level + rig are loaded.");
         MelonLogger.Msg("Telegram: @be_primex");
     }
 
@@ -45,7 +53,6 @@ public class NerveMod : MelonMod
 
     public override void OnLateUpdate()
     {
-        // After art-rig solve — re-stamp Quest curls/joints so nothing overwrites them.
         HandSync.LateTick();
     }
 
