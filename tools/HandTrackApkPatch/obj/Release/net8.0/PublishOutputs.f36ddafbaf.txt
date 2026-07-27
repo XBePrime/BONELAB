@@ -1,5 +1,0 @@
-/tmp/handtrack-publish/HandTrackApkPatch
-/tmp/handtrack-publish/HandTrackApkPatch.dll
-/tmp/handtrack-publish/HandTrackApkPatch.deps.json
-/tmp/handtrack-publish/HandTrackApkPatch.runtimeconfig.json
-/tmp/handtrack-publish/HandTrackApkPatch.pdb
