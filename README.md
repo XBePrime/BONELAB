@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/icon.png" alt="NERVE" width="148" />
+<img src="icon.png" alt="NERVE" width="148" />
 
 # NERVE
 
 **Bare-hand control for BONELAB — Quest hand tracking → full finger sync**
 
-Put the controllers down. Your hands drive the rig. Every finger.
+Put the controllers down. Your hands drive the rig. Every finger — same curls Quest tracks.
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.0.0-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.0.1-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,7 +18,7 @@ Put the controllers down. Your hands drive the rig. Every finger.
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.0.0"><img src="https://img.shields.io/badge/%20-Release_v1.0.0-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.0.1"><img src="https://img.shields.io/badge/%20-Release_v1.0.1-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
@@ -32,12 +32,12 @@ Put the controllers down. Your hands drive the rig. Every finger.
 
 | | |
 |---|---|
-| **Hand tracking** | Meta Quest 3 / 3S (OpenXR / Oculus hands) |
-| **Per-finger sync** | Thumb · Index · Middle · Ring · Pinky — 1:1 curls |
+| **Hand tracking** | Meta Quest 3 / 3S — same `XRHand` buffers Quest feeds the game |
+| **Per-finger sync** | Thumb · Index · Middle · Ring · Pinky — 1:1 curls, no smoothing |
+| **Joints** | Full skeleton overlay when available (26 bones) |
 | **Gestures** | Flip-off, fist, OK, point — rig mirrors you |
-| **Wrist** | Hands replace controller pose when controllers are down |
+| **Wrist** | Follows Quest palm while hands are tracked |
 | **Grip** | Pinch / fist maps to grab input |
-| **Latency** | Direct overwrite after `OpenController.OnUpdate` — no smoothing filter |
 
 ---
 
