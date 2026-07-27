@@ -28,7 +28,7 @@ public static class PinchLoco
 
             try
             {
-                if (!Player.RigReady || Player.Head == null)
+                if (!Player.HandsExist || Player.Head == null)
                     return;
 
                 if (!TryBuildAxis(out Vector2 axis, out bool active))
