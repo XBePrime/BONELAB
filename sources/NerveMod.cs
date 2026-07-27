@@ -41,6 +41,12 @@ public class NerveMod : MelonMod
         Prefs.Tick();
     }
 
+    public override void OnLateUpdate()
+    {
+        // After art-rig solve — re-stamp Quest curls/joints so nothing overwrites them.
+        HandSync.LateTick();
+    }
+
     public override void OnDeinitializeMelon()
     {
         HandSync.OnEnabledChanged(false);
