@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/nerve.png" alt="NERVE" width="148" />
+
 # NERVE
 
 **Bare-hand control for BONELAB — Quest hand tracking → full finger sync**
