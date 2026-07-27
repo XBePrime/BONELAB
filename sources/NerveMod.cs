@@ -1,11 +1,13 @@
 using System;
+using System.Reflection;
 using BoneLib;
+using HarmonyLib;
+using Il2CppSLZ.Marrow;
 using MelonLoader;
 using UnityEngine;
 using BoneMenuPage = BoneLib.BoneMenu.Page;
 
-// CRITICAL: without this, MelonLoader auto-PatchAll's every [HarmonyPatch] at HarmonyInit
-// (before the avatar exists) and Quest native-crashes on spawn with no useful log.
+// CRITICAL: block MelonLoader auto-PatchAll at HarmonyInit (pre-avatar native crash).
 [assembly: HarmonyDontPatchAll]
 
 [assembly: MelonInfo(typeof(BePrime.Nerve.NerveMod), BePrime.Nerve.BuildInfo.Name, BePrime.Nerve.BuildInfo.Version, BePrime.Nerve.BuildInfo.Author, BePrime.Nerve.BuildInfo.DownloadLink)]
@@ -16,9 +18,10 @@ namespace BePrime.Nerve;
 public class NerveMod : MelonMod
 {
     public static bool Enabled = true;
-    public static bool SyncWrist = true;
-    public static bool SyncBones = true;
-    public static bool ForceFullSkeleton = true;
+    // Risky paths OFF by default — enable in BoneMenu after stable spawn.
+    public static bool SyncWrist;
+    public static bool SyncBones;
+    public static bool ForceFullSkeleton;
     public static bool GripFromFingers = true;
     public static bool PinchLoco = true;
 
@@ -26,10 +29,13 @@ public class NerveMod : MelonMod
     private static readonly Color AccentAlt = new Color(0.20f, 0.85f, 0.65f);
     private static readonly Color LocoAccent = new Color(0.35f, 0.75f, 1f);
 
-    private static bool _harmonyArmed;
+    private static int _patchStage; // 0=off 1=curls 2=+loco 3=done
     private static bool _levelSeen;
     private static float _armAt = -1f;
-    private const float ArmDelaySeconds = 2.5f;
+    private static float _nextStageAt = -1f;
+    private static float _nextHeartbeatAt = -1f;
+    private const float ArmDelaySeconds = 3.0f;
+    private const float StageGapSeconds = 3.0f;
 
     public static NerveMod Instance { get; private set; }
 
@@ -37,44 +43,48 @@ public class NerveMod : MelonMod
     {
         Instance = this;
         MelonLogger.Msg("NERVE boot — OnInitializeMelon");
-        MelonLogger.Msg("NERVE HarmonyDontPatchAll active — no early auto-patch");
+        MelonLogger.Msg("NERVE HarmonyDontPatchAll — no Melon auto-patch");
 
         try
         {
             Prefs.Create();
-            MelonLogger.Msg("NERVE prefs ok");
+            // Force safe defaults so old MelonPreferences can't re-enable crashy paths.
+            SyncWrist = false;
+            SyncBones = false;
+            ForceFullSkeleton = false;
+            MelonLogger.Msg("NERVE safe defaults: Wrist/Bones/Skeleton OFF (enable in BoneMenu if needed)");
+            Prefs.MarkDirty();
         }
         catch (Exception ex)
         {
             MelonLogger.Error($"NERVE prefs FAILED: {ex}");
         }
 
-        // Do NOT PatchAll here. MelonHarmonyInit already skipped via HarmonyDontPatchAll.
-        // Patches arm only after level load + delay (see OnUpdate).
-
         Hooking.OnLevelLoaded += OnLevelLoaded;
         Hooking.OnLevelUnloaded += OnLevelUnloaded;
-        MelonLogger.Msg("NERVE BoneLib hooks subscribed");
+        MelonLogger.Msg("NERVE hooks subscribed");
 
         BuildMenu();
-        MelonLogger.Msg("NERVE init done — Harmony DEFERRED until after avatar spawn");
+        MelonLogger.Msg("NERVE init done — patches staged AFTER avatar spawn");
         MelonLogger.Msg("Telegram: @be_primex");
     }
 
     private static void OnLevelLoaded(LevelInfo _)
     {
         _levelSeen = true;
-        _harmonyArmed = false;
+        _patchStage = 0;
         _armAt = Time.unscaledTime + ArmDelaySeconds;
+        _nextStageAt = -1f;
         HandSync.OnLevelLoaded();
-        MelonLogger.Msg($"NERVE level loaded — arming Harmony in {ArmDelaySeconds:0.0}s");
+        MelonLogger.Msg($"NERVE level loaded — stage1 in {ArmDelaySeconds:0.0}s");
     }
 
     private static void OnLevelUnloaded()
     {
-        MelonLogger.Msg("NERVE level unloaded — disarming Harmony");
+        MelonLogger.Msg("NERVE level unloaded");
         _levelSeen = false;
         _armAt = -1f;
+        _nextStageAt = -1f;
         Instance?.DisarmHarmony();
         HandSync.OnLevelUnloaded();
     }
@@ -83,53 +93,109 @@ public class NerveMod : MelonMod
     {
         Prefs.Tick();
 
-        if (_harmonyArmed || !_levelSeen || _armAt < 0f)
-            return;
-        if (Time.unscaledTime < _armAt)
+        if (!_levelSeen)
             return;
 
-        // Wait until rig actually exists — extra safety beyond the timer.
-        try
+        float now = Time.unscaledTime;
+
+        if (_patchStage > 0 && now >= _nextHeartbeatAt)
         {
-            if (!Player.HandsExist || Player.ControllerRig == null)
-            {
-                _armAt = Time.unscaledTime + 0.5f;
+            _nextHeartbeatAt = now + 5f;
+            MelonLogger.Msg($"NERVE heartbeat stage={_patchStage} liveL={HandSync.LiveLeft} liveR={HandSync.LiveRight}");
+        }
+
+        if (_patchStage == 0)
+        {
+            if (_armAt < 0f || now < _armAt)
                 return;
-            }
-        }
-        catch (Exception ex)
-        {
-            MelonLogger.Warning($"NERVE waiting for rig: {ex.Message}");
-            _armAt = Time.unscaledTime + 0.5f;
+            if (!RigReady(ref _armAt))
+                return;
+            ArmStage1_CurlsOnly();
             return;
         }
 
-        Instance?.ArmHarmony();
+        if (_patchStage == 1 && now >= _nextStageAt)
+        {
+            if (!RigReady(ref _nextStageAt))
+                return;
+            ArmStage2_PinchLoco();
+            return;
+        }
     }
 
-    private void ArmHarmony()
+    private static bool RigReady(ref float retryAt)
     {
-        if (_harmonyArmed)
-            return;
-
-        MelonLogger.Msg("NERVE arming Harmony patches now…");
         try
         {
-            HarmonyInstance.PatchAll(typeof(HandSync).Assembly);
-            _harmonyArmed = true;
-            MelonLogger.Msg("NERVE Harmony ARMED — hand sync + pinch walk live");
+            if (Player.HandsExist && Player.ControllerRig != null)
+                return true;
         }
         catch (Exception ex)
         {
-            _harmonyArmed = false;
-            _armAt = Time.unscaledTime + 2f;
-            MelonLogger.Error($"NERVE Harmony arm FAILED (will retry): {ex}");
+            MelonLogger.Warning($"NERVE rig wait: {ex.Message}");
         }
+
+        retryAt = Time.unscaledTime + 0.5f;
+        return false;
+    }
+
+    private void ArmStage1_CurlsOnly()
+    {
+        MelonLogger.Msg("NERVE stage1 — patch OpenController.OnUpdate (curls only)");
+        try
+        {
+            PatchPostfix(typeof(OpenController), nameof(OpenController.OnUpdate), typeof(HandSync), "OnUpdatePatch");
+            _patchStage = 1;
+            _nextStageAt = Time.unscaledTime + StageGapSeconds;
+            _nextHeartbeatAt = Time.unscaledTime + 2f;
+            MelonLogger.Msg("NERVE stage1 OK — if crash happens now, it's curl sync");
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Error($"NERVE stage1 FAILED: {ex}");
+            _armAt = Time.unscaledTime + 2f;
+            _patchStage = 0;
+        }
+    }
+
+    private void ArmStage2_PinchLoco()
+    {
+        MelonLogger.Msg("NERVE stage2 — patch OpenControllerRig.OnUpdate (pinch walk)");
+        try
+        {
+            PatchPostfix(typeof(OpenControllerRig), nameof(OpenControllerRig.OnUpdate), typeof(PinchLoco), "RigOnUpdatePatch");
+            _patchStage = 2;
+            _nextHeartbeatAt = Time.unscaledTime + 2f;
+            MelonLogger.Msg("NERVE stage2 OK — curls + pinch walk live (wrist/skeleton still OFF)");
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Error($"NERVE stage2 FAILED: {ex}");
+            _nextStageAt = Time.unscaledTime + 2f;
+        }
+    }
+
+    private void PatchPostfix(Type target, string methodName, Type container, string nestedName)
+    {
+        MethodInfo targetMethod = AccessTools.Method(target, methodName);
+        if (targetMethod == null)
+            throw new MissingMethodException(target.FullName, methodName);
+
+        Type nested = container.GetNestedType(nestedName, BindingFlags.NonPublic | BindingFlags.Public);
+        if (nested == null)
+            throw new TypeLoadException(container.Name + "." + nestedName);
+
+        MethodInfo postfix = AccessTools.Method(nested, "Postfix");
+        if (postfix == null)
+            throw new MissingMethodException(nested.FullName, "Postfix");
+
+        HarmonyInstance.Patch(targetMethod, postfix: new HarmonyMethod(postfix));
+        MelonLogger.Msg($"NERVE patched {target.Name}.{methodName}");
     }
 
     private void DisarmHarmony()
     {
-        if (!_harmonyArmed)
+        if (_patchStage == 0)
             return;
 
         try
@@ -142,12 +208,12 @@ public class NerveMod : MelonMod
             MelonLogger.Error($"NERVE UnpatchSelf FAILED: {ex}");
         }
 
-        _harmonyArmed = false;
+        _patchStage = 0;
     }
 
     public override void OnLateUpdate()
     {
-        if (!_harmonyArmed)
+        if (_patchStage < 1 || !SyncBones)
             return;
         HandSync.LateTick();
     }
@@ -177,18 +243,21 @@ public class NerveMod : MelonMod
             {
                 SyncWrist = val;
                 Prefs.MarkDirty();
+                MelonLogger.Msg($"NERVE SyncWrist={val}");
             });
 
             root.CreateBool("Sync Bones", AccentAlt, SyncBones, val =>
             {
                 SyncBones = val;
                 Prefs.MarkDirty();
+                MelonLogger.Msg($"NERVE SyncBones={val}");
             });
 
             root.CreateBool("Full Skeleton", AccentAlt, ForceFullSkeleton, val =>
             {
                 ForceFullSkeleton = val;
                 Prefs.MarkDirty();
+                MelonLogger.Msg($"NERVE FullSkeleton={val}");
             });
 
             root.CreateBool("Grip From Fingers", AccentAlt, GripFromFingers, val =>
@@ -198,10 +267,10 @@ public class NerveMod : MelonMod
             });
 
             root.CreateBool("Pinch Walk", LocoAccent, PinchLoco, val =>
-            {
-                PinchLoco = val;
-                Prefs.MarkDirty();
-            });
+                {
+                    PinchLoco = val;
+                    Prefs.MarkDirty();
+                });
 
             MelonLogger.Msg("NERVE BoneMenu ok");
         }

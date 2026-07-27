@@ -32,12 +32,17 @@ public static class HandSync
     private static Vector3 _posL, _posR;
     private static Quaternion _rotL = Quaternion.identity, _rotR = Quaternion.identity;
     private static bool _liveL, _liveR;
+    private static bool _loggedFirstSync;
+
+    public static bool LiveLeft => _liveL;
+    public static bool LiveRight => _liveR;
 
     public static void OnLevelLoaded()
     {
         Reset();
         PinchLoco.Reset();
         _levelLoadedAt = Time.unscaledTime;
+        _loggedFirstSync = false;
     }
 
     public static void OnLevelUnloaded()
@@ -230,8 +235,14 @@ public static class HandSync
             CachePose(left, xrHand);
             MarkLive(left);
 
-            // Full skeleton APIs are native — only after spawn grace.
-            if (SpawnSettled && NerveMod.ForceFullSkeleton)
+            if (!_loggedFirstSync)
+            {
+                _loggedFirstSync = true;
+                MelonLogger.Msg($"NERVE first hand sample ({(left ? "L" : "R")}) curls T={xrHand.ThumbCurl:0.00} I={xrHand.IndexCurl:0.00}");
+            }
+
+            // Native skeleton APIs — only if user explicitly enabled Full Skeleton.
+            if (NerveMod.ForceFullSkeleton && SpawnSettled)
                 EnsureFullUpdate(xrHand, left);
         }
         else if (!Holding(left ? _lastTrackLeft : _lastTrackRight))
@@ -241,6 +252,7 @@ public static class HandSync
             return;
         }
 
+        // Minimal safe path: float curls only.
         oc._noFingies = false;
         ApplyCurls(oc, left);
 
@@ -250,7 +262,7 @@ public static class HandSync
         if (NerveMod.SyncWrist)
             ApplyWrist(oc, left);
 
-        if (SpawnSettled && NerveMod.ForceFullSkeleton && IsHandTracked(xrHand))
+        if (NerveMod.ForceFullSkeleton && SpawnSettled && IsHandTracked(xrHand))
             TryDrawSkeleton(oc, xrHand);
     }
 
@@ -392,8 +404,8 @@ public static class HandSync
         Vector3 pos = hand.Position;
         Quaternion rot = hand.Rotation;
 
-        // Root bone only after spawn grace + full skeleton — GetHandBone is native.
-        if (SpawnSettled)
+        // Root bone only when Full Skeleton is explicitly on.
+        if (NerveMod.ForceFullSkeleton && SpawnSettled)
         {
             try
             {
@@ -407,7 +419,10 @@ public static class HandSync
                     }
                 }
             }
-            catch { /* device pose fallback */ }
+            catch (Exception ex)
+            {
+                NerveLog.Warn("GetHandBone", ex);
+            }
         }
 
         if (left)
