@@ -10,7 +10,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.1.7-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.1.8-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,7 +18,7 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.7"><img src="https://img.shields.io/badge/%20-Release_v1.1.7-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/nerve-v1.1.8"><img src="https://img.shields.io/badge/%20-Release_v1.1.8-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
@@ -29,21 +29,16 @@ Put the controllers down. Your hands drive the rig. Every finger — same curls 
 ---
 
 
-## 1.1.7
+## 1.1.8 — required APK patch
 
-1.1.6 proved **OVRPlugin hand tracking is OFF** on Quest OpenXR BONELAB (`ovrEnable=False`).
+Quest log proof: `handChar=0 handData=0 ovrEnable=False` and only the HMD device.
+**Meta will not enumerate hands** unless BONELAB's AndroidManifest declares `HAND_TRACKING`.
 
-**1.1.7** also:
-- samples **Unity XR** `InputDevices` / `handData` (same path Marrow `HandActionMap` uses)
-- force-refreshes Marrow hand device pick every frame
-- requests Android permission `com.oculus.permission.HAND_TRACKING`
-
-In the MelonLoader log look for:
-- `NERVE permission: HAND_TRACKING already granted` (or a Quest permission popup)
-- `NERVE XR devices (…): …`
-- heartbeat `liveL=True` / `handData>0` / `perm=GRANTED`
-
-If `perm=DENIED` or `handChar=0 handData=0` with controllers down — Quest is not exposing hands to BONELAB (APK/feature). Send that log.
+1. Download **HandTrackApkPatch.zip** from the release
+2. Run it on your BONELAB APK → get `*.handtrack.apk`
+3. Reinstall / re-patch with LemonLoader
+4. Allow Hand Tracking if prompted
+5. Drop in `Nerve.dll` 1.1.8+
 
 ## What it does
 

@@ -81,11 +81,19 @@ internal static class UnityXrHands
             if (!tracked)
                 return false;
 
+            var chars = device.characteristics;
+            bool isHandDevice = (chars & InputDeviceCharacteristics.HandTracking) != 0;
+            bool hasHandData = device.TryGetFeatureValue(CommonUsages.handData, out XrHand hand);
+
+            // Controllers are Left/Right + tracked — do NOT treat them as bare hands.
+            if (!isHandDevice && !hasHandData)
+                return false;
+
             device.TryGetFeatureValue(CommonUsages.devicePosition, out position);
             device.TryGetFeatureValue(CommonUsages.deviceRotation, out rotation);
 
             // Preferred: real hand skeleton → curls.
-            if (device.TryGetFeatureValue(CommonUsages.handData, out XrHand hand))
+            if (hasHandData)
             {
                 thumb = FingerCurl(hand, HandFinger.Thumb);
                 index = FingerCurl(hand, HandFinger.Index);
@@ -103,7 +111,7 @@ internal static class UnityXrHands
                 return true;
             }
 
-            // Fallback: legacy per-finger float features (no thumb usage on CommonUsages).
+            // HandTracking device without handData: try legacy finger floats.
             float i = 0f, m = 0f, r = 0f, p = 0f;
             bool any =
                 device.TryGetFeatureValue(CommonUsages.indexFinger, out i) |
@@ -112,7 +120,7 @@ internal static class UnityXrHands
                 device.TryGetFeatureValue(CommonUsages.pinkyFinger, out p);
 
             if (!any)
-                return tracked; // pose only
+                return false;
 
             index = Clamp01(i);
             middle = Clamp01(m);

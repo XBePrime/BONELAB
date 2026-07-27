@@ -101,7 +101,10 @@ public class NerveMod : MelonMod
         if (_patchStage > 0 && now >= _nextHeartbeatAt)
         {
             _nextHeartbeatAt = now + 5f;
-            MelonLogger.Msg($"NERVE heartbeat stage={_patchStage} liveL={HandSync.LiveLeft} liveR={HandSync.LiveRight} | {HandPerms.ProbeLine()} | {UnityXrHands.ProbeLine()} | {OvrHands.ProbeLine()}");
+            string xr = UnityXrHands.ProbeLine();
+            string ovr = OvrHands.ProbeLine();
+            MelonLogger.Msg($"NERVE heartbeat stage={_patchStage} liveL={HandSync.LiveLeft} liveR={HandSync.LiveRight} | {HandPerms.ProbeLine()} | {xr} | {ovr}");
+            HandPerms.MaybeLogApkBlocker(xr, ovr);
         }
 
         if (_patchStage == 0)
@@ -115,6 +118,7 @@ public class NerveMod : MelonMod
             OvrHands.EnsureConfigured();
             UnityXrHands.ForceMarrowHandMaps();
             MelonLogger.Msg("NERVE probe: " + HandPerms.ProbeLine() + " | " + UnityXrHands.ProbeLine() + " | " + OvrHands.ProbeLine());
+            HandPerms.MaybeLogApkBlocker(UnityXrHands.ProbeLine(), OvrHands.ProbeLine());
             return;
         }
 
