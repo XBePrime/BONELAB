@@ -1,0 +1,11 @@
+/workspace/sources/bin/Release/Aimbot.deps.json
+/workspace/sources/bin/Release/Aimbot.dll
+/workspace/sources/bin/Release/Aimbot.pdb
+/workspace/sources/obj/Release/Aimbot.csproj.AssemblyReference.cache
+/workspace/sources/obj/Release/Aimbot.GeneratedMSBuildEditorConfig.editorconfig
+/workspace/sources/obj/Release/Aimbot.csproj.CoreCompileInputs.cache
+/workspace/sources/obj/Release/Aimbot.sourcelink.json
+/workspace/sources/obj/Release/Aimbot.dll
+/workspace/sources/obj/Release/refint/Aimbot.dll
+/workspace/sources/obj/Release/Aimbot.pdb
+/workspace/sources/obj/Release/ref/Aimbot.dll

@@ -19,7 +19,7 @@ public static class Prefs
 
     public static void Create()
     {
-        Category = MelonPreferences.CreateCategory("BePrimeAimbot");
+        Category = MelonPreferences.CreateCategory("AIMBOT");
 
         AimBot = Category.CreateEntry("Aimbot", AimbotMod.AimBotEnabled);
         TriggerBot = Category.CreateEntry("Triggerbot", AimbotMod.TriggerBotEnabled);

@@ -20,7 +20,7 @@ NPCs · LabFusion players · BoneMenu
 
 <a href="https://github.com/XBePrime/BONELAB/releases/tag/v1.1.0"><img src="https://img.shields.io/badge/%20-Release_v1.1.0-E11D48?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="BePrimeAimbot.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
+<a href="Aimbot.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
 
@@ -44,7 +44,7 @@ NPCs · LabFusion players · BoneMenu
 ## Menu
 
 ```text
-BoneMenu → BE PRIME Aimbot
+BoneMenu → AIMBOT
 ```
 
 | Option | Default |
@@ -64,14 +64,14 @@ BoneMenu → BE PRIME Aimbot
 1. MelonLoader / LemonLoader  
 2. [BoneLib](https://thunderstore.io/c/bonelab/p/gnonme/BoneLib/)  
 3. [LabFusion](https://thunderstore.io/c/bonelab/p/Lakatrazz/LabFusion/) for players  
-4. `BePrimeAimbot.dll` → `Mods/`  
-5. **BoneMenu → BE PRIME Aimbot**
+4. `Aimbot.dll` → `Mods/`  
+5. **BoneMenu → AIMBOT**
 
 <div align="center">
 
 <br/>
 
-<a href="BePrimeAimbot.dll"><img src="https://img.shields.io/badge/%20-Get_the_DLL-111827?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
+<a href="Aimbot.dll"><img src="https://img.shields.io/badge/%20-Get_the_DLL-111827?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
 &nbsp;
 <a href="https://thunderstore.io/c/bonelab/p/gnonme/BoneLib/"><img src="https://img.shields.io/badge/%20-BoneLib-F59E0B?style=for-the-badge" height="44" /></a>
 &nbsp;
@@ -84,7 +84,7 @@ BoneMenu → BE PRIME Aimbot
 ## Layout
 
 ```text
-├── BePrimeAimbot.dll
+├── Aimbot.dll
 ├── icon.png
 ├── manifest.json
 ├── README.md

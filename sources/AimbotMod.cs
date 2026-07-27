@@ -116,7 +116,7 @@ public class AimbotMod : MelonMod
 
     private static void BuildMenu()
     {
-        BoneMenuPage root = BoneMenuPage.Root.CreatePage("BE PRIME Aimbot", Accent);
+        BoneMenuPage root = BoneMenuPage.Root.CreatePage("AIMBOT", Accent);
 
         root.CreateBool("Aimbot", Accent, AimBotEnabled, val =>
         {
