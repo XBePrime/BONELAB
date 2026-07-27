@@ -60,7 +60,7 @@ Bare-hand Quest tracking — every finger synced to the rig
 
 <a href="https://github.com/XBePrime/BONELAB/tree/nerve"><img src="https://img.shields.io/badge/%20-Open_NERVE-F97316?style=for-the-badge&logo=github&logoColor=white" height="44" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB/raw/nerve/Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/nerve-v1.0.0/Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Telegram-0284C7?style=for-the-badge&logo=telegram&logoColor=white" height="44" /></a>
 
