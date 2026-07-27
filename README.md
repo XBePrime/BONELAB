@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/brand/be-prime.png" alt="BE PRIME" width="100%" />
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/be-prime.png" alt="BE PRIME" width="100%" />
 
 # BE PRIME
 
