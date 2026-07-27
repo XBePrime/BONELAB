@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon.png" alt="Aimbot" width="148" />
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/icon.png" alt="Aimbot" width="148" />
 
 # Aimbot
 

@@ -1,9 +1,0 @@
-{
-  "name": "Aimbot",
-  "version_number": "1.1.0",
-  "website_url": "https://t.me/be_primex",
-  "description": "BE PRIME Aimbot — precision aim assist for NPCs and Fusion players.",
-  "dependencies": [
-    "gnonme-BoneLib-3.0.0"
-  ]
-}
