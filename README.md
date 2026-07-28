@@ -58,7 +58,7 @@ Precision aim assist — NPCs & LabFusion players
 
 <br/>
 
-Premium box ESP — Box / Corners · Color · Rainbow
+ESP — Box / Corners · Color · Rainbow
 
 <br/>
 
