@@ -68,3 +68,4 @@ BoneMenu → ESP
 - No skull
 - Dead players → red (Fusion DYING/DEATH)
 - NPC HP from spawn HP
+
