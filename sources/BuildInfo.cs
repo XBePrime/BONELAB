@@ -4,6 +4,6 @@ public static class BuildInfo
 {
     public const string Name = "ESP";
     public const string Author = "BE PRIME";
-    public const string Version = "1.0.3";
+    public const string Version = "1.0.4";
     public const string DownloadLink = "https://t.me/be_primex";
 }

@@ -46,6 +46,7 @@ public class EspMod : MelonMod
 
     private static float _nextPlayerSync = -1f;
     private static float _nextPrune = -1f;
+    private static float _nextNpcScan = -1f;
 
     public override void OnInitializeMelon()
     {
@@ -59,6 +60,8 @@ public class EspMod : MelonMod
             EspNpc.Clear();
             EspPlayer.Clear();
             EspDraw.Reset();
+            _nextNpcScan = -1f;
+            EspNpc.RescanWorld();
         };
         Hooking.OnLevelUnloaded += () =>
         {
@@ -100,16 +103,38 @@ public class EspMod : MelonMod
 
     public override void OnLateUpdate()
     {
-        if (!LevelReady || !Enabled)
+        if (!Enabled)
             return;
+
+        // Fusion lobby / hub may not fire OnLevelLoaded the same way — auto-arm when player exists.
+        if (!LevelReady)
+        {
+            try
+            {
+                if (Player.Head != null || Player.RigManager != null)
+                {
+                    LevelReady = true;
+                    EspNpc.RescanWorld();
+                }
+            }
+            catch { /* ignore */ }
+            if (!LevelReady)
+                return;
+        }
 
         try
         {
             float now = Time.unscaledTime;
             if (FusionLoaded && TargetPlayers && now >= _nextPlayerSync)
             {
-                _nextPlayerSync = now + 0.5f;
+                _nextPlayerSync = now + 0.35f;
                 EspPlayer.SyncFromFusion();
+            }
+
+            if (TargetNpcs && now >= _nextNpcScan)
+            {
+                _nextNpcScan = now + 2f;
+                EspNpc.RescanWorld();
             }
 
             if (now >= _nextPrune)

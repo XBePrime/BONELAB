@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using Il2CppSLZ.Marrow.AI;
 using Il2CppSLZ.Marrow.PuppetMasta;
+using MelonLoader;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace BePrime.Esp;
 
-/// <summary>Plain C# NPC tracker — full-body bounds + HP.</summary>
+/// <summary>NPC tracker — live body bounds (follows ragdoll / grabs).</summary>
 public sealed class EspNpc
 {
     public static readonly List<EspNpc> All = new List<EspNpc>();
@@ -16,6 +18,8 @@ public sealed class EspNpc
     public bool Dying;
 
     private float _displayHp = 1f;
+    private readonly List<Rigidbody> _rbs = new List<Rigidbody>(32);
+    private float _nextRbScan = -1f;
 
     public AIBrain Brain => Proxy != null ? Proxy.aiManager : null;
 
@@ -38,7 +42,7 @@ public sealed class EspNpc
         }
     }
 
-    public Vector3 HeadPosition
+    public Vector3 HeadHint
     {
         get
         {
@@ -46,47 +50,12 @@ public sealed class EspNpc
             {
                 if (Proxy != null && Proxy.targetHead != null)
                     return Proxy.targetHead.position;
-                if (Proxy != null)
-                    return Proxy.transform.position;
             }
             catch { /* ignore */ }
             return Vector3.zero;
         }
     }
 
-    public Vector3 ChestPosition
-    {
-        get
-        {
-            try
-            {
-                if (Proxy != null && Proxy.chestTran != null)
-                    return Proxy.chestTran.position;
-            }
-            catch { /* ignore */ }
-            return HeadPosition - Vector3.up * 0.35f;
-        }
-    }
-
-    public Vector3 FeetPosition
-    {
-        get
-        {
-            try
-            {
-                if (Proxy != null && Proxy.feetTran != null)
-                    return Proxy.feetTran.position;
-                if (Proxy != null && Proxy.root != null)
-                    return Proxy.root.transform.position;
-                if (Proxy != null)
-                    return Proxy.transform.root.position;
-            }
-            catch { /* ignore */ }
-            return HeadPosition - Vector3.up * 1.7f;
-        }
-    }
-
-    /// <summary>0..1 health ratio, or -1 if unknown.</summary>
     public float GetHp01()
     {
         try
@@ -119,11 +88,9 @@ public sealed class EspNpc
         if (dead && !EspMod.ShowDead)
             return false;
 
-        Vector3 head = HeadPosition;
-        Vector3 feet = FeetPosition;
-        Vector3 chest = ChestPosition;
+        if (!TryLiveBody(out Vector3 feet, out Vector3 chest, out Vector3 head))
+            return false;
 
-        // Full body: always include head / chest / feet (works when ragdolled)
         float hp = dead ? 0f : GetHp01();
         if (hp < 0f)
             hp = dead ? 0f : 1f;
@@ -132,7 +99,7 @@ public sealed class EspNpc
 
         frame = new EspFrame
         {
-            Head = head + Vector3.up * 0.03f,
+            Head = head,
             Feet = feet,
             Chest = chest,
             Hp01 = hp,
@@ -142,6 +109,110 @@ public sealed class EspNpc
             Color = ResolveColor(dead)
         };
         return true;
+    }
+
+    /// <summary>
+    /// Live AABB from rigidbodies / proxy bones — updates when body is dragged.
+    /// </summary>
+    private bool TryLiveBody(out Vector3 feet, out Vector3 chest, out Vector3 head)
+    {
+        feet = chest = head = Vector3.zero;
+
+        RefreshRigidbodies();
+
+        bool any = false;
+        Vector3 min = Vector3.zero;
+        Vector3 max = Vector3.zero;
+
+        void Encapsulate(Vector3 p)
+        {
+            if (!any)
+            {
+                min = max = p;
+                any = true;
+            }
+            else
+            {
+                min = Vector3.Min(min, p);
+                max = Vector3.Max(max, p);
+            }
+        }
+
+        for (int i = 0; i < _rbs.Count; i++)
+        {
+            Rigidbody rb = _rbs[i];
+            if (rb == null)
+                continue;
+            Encapsulate(rb.worldCenterOfMass);
+            Encapsulate(rb.position);
+        }
+
+        // Always fold in proxy landmarks when present
+        try
+        {
+            if (Proxy != null)
+            {
+                if (Proxy.targetHead != null)
+                    Encapsulate(Proxy.targetHead.position);
+                if (Proxy.chestTran != null)
+                    Encapsulate(Proxy.chestTran.position);
+                if (Proxy.feetTran != null)
+                    Encapsulate(Proxy.feetTran.position);
+                else if (Proxy.root != null)
+                    Encapsulate(Proxy.root.transform.position);
+            }
+        }
+        catch { /* ignore */ }
+
+        if (!any)
+            return false;
+
+        // Pad slightly so box covers volume, not just COM points
+        Vector3 pad = new Vector3(0.12f, 0.08f, 0.12f);
+        min -= pad;
+        max += pad;
+
+        Vector3 center = (min + max) * 0.5f;
+        feet = new Vector3(center.x, min.y, center.z);
+        head = new Vector3(center.x, max.y + 0.03f, center.z);
+        chest = new Vector3(center.x, Mathf.Lerp(min.y, max.y, 0.55f), center.z);
+
+        // Prefer real head bone XZ if available (skull sits on actual head)
+        Vector3 hh = HeadHint;
+        if (hh.sqrMagnitude > 0.001f)
+        {
+            head = new Vector3(hh.x, Mathf.Max(hh.y + 0.03f, max.y + 0.03f), hh.z);
+            // Keep feet under body center, not under head when ragdolled sideways
+        }
+
+        return (max - min).sqrMagnitude > 0.01f;
+    }
+
+    private void RefreshRigidbodies()
+    {
+        float now = Time.unscaledTime;
+        if (_rbs.Count > 0 && now < _nextRbScan)
+        {
+            // Drop nulls cheaply
+            for (int i = _rbs.Count - 1; i >= 0; i--)
+                if (_rbs[i] == null) _rbs.RemoveAt(i);
+            return;
+        }
+
+        _nextRbScan = now + 0.5f;
+        _rbs.Clear();
+        try
+        {
+            Transform root = Proxy != null ? Proxy.transform.root : null;
+            if (root == null)
+                return;
+            foreach (Rigidbody rb in root.GetComponentsInChildren<Rigidbody>())
+            {
+                if (rb != null)
+                    _rbs.Add(rb);
+            }
+        }
+        catch { /* ignore */ }
     }
 
     private static Color ResolveColor(bool dead)
@@ -174,6 +245,14 @@ public sealed class EspNpc
         }
         catch { /* ignore */ }
 
+        // Skip local player proxy if any
+        try
+        {
+            if (proxy.transform.root.name.Contains("Player") && brain.behaviour == null)
+                return;
+        }
+        catch { /* ignore */ }
+
         int id = proxy.transform.root.GetInstanceID();
         for (int i = 0; i < All.Count; i++)
         {
@@ -182,6 +261,7 @@ public sealed class EspNpc
             {
                 existing.Proxy = proxy;
                 existing.Dying = false;
+                existing._nextRbScan = -1f;
                 return;
             }
         }
@@ -217,6 +297,20 @@ public sealed class EspNpc
             EspNpc n = All[i];
             if (n == null || !n.IsValid)
                 All.RemoveAt(i);
+        }
+    }
+
+    /// <summary>Find already-spawned NPCs (Fusion lobby / late load).</summary>
+    public static void RescanWorld()
+    {
+        try
+        {
+            foreach (TriggerRefProxy proxy in Object.FindObjectsOfType<TriggerRefProxy>())
+                Bind(proxy);
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Warning($"ESP NPC rescan: {ex.Message}");
         }
     }
 }
