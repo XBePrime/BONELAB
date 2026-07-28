@@ -4,7 +4,7 @@
 
 # ESP
 
-**Premium box ESP for BONELAB**
+**ESP for BONELAB**
 
 NPCs · LabFusion players · Box / Corner frames · Rainbow
 

@@ -1,6 +1,0 @@
-sources/bin/
-sources/obj/
-bin/
-obj/
-*.user
-*.pdb
