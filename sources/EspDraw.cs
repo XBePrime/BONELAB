@@ -8,7 +8,6 @@ using Object = UnityEngine.Object;
 
 namespace BePrime.Esp;
 
-/// <summary>2D boxes + solid HP bar + death skull. Tight bone-based frames.</summary>
 public static class EspDraw
 {
     private static Transform _root;
@@ -23,17 +22,19 @@ public static class EspDraw
     private static readonly List<GameObject> _skulls = new List<GameObject>(64);
     private static readonly Vector3[] _q = new Vector3[4];
 
+    // Discrete HP colors — no gradients, no pulse
+    private static readonly Color HpGreen = new Color(0.15f, 0.95f, 0.25f, 1f);
+    private static readonly Color HpYellow = new Color(1f, 0.9f, 0.12f, 1f);
+    private static readonly Color HpRed = new Color(1f, 0.12f, 0.1f, 1f);
+
     public static void Reset()
     {
-        DestroyLrs(_boxLines);
-        DestroyLrs(_hpTrack);
-        DestroyLrs(_hpFill);
+        DestroyLrs(_boxLines); DestroyLrs(_hpTrack); DestroyLrs(_hpFill);
         for (int i = 0; i < _skulls.Count; i++)
             if (_skulls[i] != null) Object.Destroy(_skulls[i]);
         _skulls.Clear();
         if (_root != null) Object.Destroy(_root.gameObject);
-        _root = null;
-        _frame.Clear();
+        _root = null; _frame.Clear();
         if (_lineMat != null) { Object.Destroy(_lineMat); _lineMat = null; }
         if (_hpMat != null) { Object.Destroy(_hpMat); _hpMat = null; }
         EspSkull.Dispose();
@@ -52,18 +53,14 @@ public static class EspDraw
         {
             Collect();
             if (_frame.Count == 0) { HideAll(); return; }
-
             EnsureRoot();
             if (_root == null || !EnsureMaterials()) return;
-            ApplyZTest();
-            EspSkull.ApplyZTest();
-
-            if (!TryGetCamAxes(out Vector3 eye, out Vector3 right, out Vector3 up))
-                return;
+            ApplyZTest(); EspSkull.ApplyZTest();
+            if (!TryGetCamAxes(out Vector3 eye, out Vector3 right, out Vector3 up)) return;
 
             bool corners = EspMod.Style == 1;
-            int linesPerBox = corners ? 8 : 4;
-            EnsureLinePool(_boxLines, _frame.Count * linesPerBox, _lineMat);
+            int per = corners ? 8 : 4;
+            EnsureLinePool(_boxLines, _frame.Count * per, _lineMat);
             EnsureLinePool(_hpTrack, EspMod.ShowHp ? _frame.Count : 0, _hpMat);
             EnsureLinePool(_hpFill, EspMod.ShowHp ? _frame.Count : 0, _hpMat);
             EnsureSkullPool(_frame.Count);
@@ -77,11 +74,10 @@ public static class EspDraw
                 EspFrame f = _frame[t];
                 BuildRect(f, eye, right, up, out float boxH);
 
-                Color col = f.Color;
-                float dist = Vector3.Distance(eye, (f.Head + f.Feet) * 0.5f);
-                float fade = dist < EspMod.MaxDistance * 0.55f
-                    ? 1f
-                    : Mathf.Lerp(1f, 0.3f, (dist / EspMod.MaxDistance - 0.55f) / 0.45f);
+                Color col = f.Dead ? EspMod.DeadColor : f.Color;
+                float dist = Vector3.Distance(eye, f.Center);
+                float fade = dist < EspMod.MaxDistance * 0.55f ? 1f
+                    : Mathf.Lerp(1f, 0.35f, (dist / EspMod.MaxDistance - 0.55f) / 0.45f);
                 col.a *= fade;
 
                 if (corners)
@@ -99,6 +95,7 @@ public static class EspDraw
                         SetSeg(_boxLines[li++], _q[e], _q[(e + 1) % 4], col, w);
                 }
 
+                // HP only when alive + valid reading
                 if (EspMod.ShowHp && f.HasHp && !f.Dead)
                     DrawHp(t, f, right, fade);
                 else
@@ -107,6 +104,7 @@ public static class EspDraw
                     if (t < _hpFill.Count && _hpFill[t] != null) _hpFill[t].enabled = false;
                 }
 
+                // BIG skull dead-center on corpse
                 if (f.Dead && EspMod.ShowSkull)
                     PlaceSkull(t, f, eye, up, boxH, fade);
                 else if (t < _skulls.Count && _skulls[t] != null)
@@ -123,41 +121,34 @@ public static class EspDraw
             for (int t = _frame.Count; t < _skulls.Count; t++)
                 if (_skulls[t] != null) _skulls[t].SetActive(false);
         }
-        catch (Exception ex)
-        {
-            MelonLogger.Warning($"ESP draw: {ex.Message}");
-        }
+        catch (Exception ex) { MelonLogger.Warning($"ESP draw: {ex.Message}"); }
     }
 
     private static void Collect()
     {
         _frame.Clear();
         if (!EspMod.Enabled) return;
-
         Vector3 eye = Vector3.zero;
-        try { if (Player.Head != null) eye = Player.Head.position; } catch { /* */ }
+        try { if (Player.Head != null) eye = Player.Head.position; } catch { }
         float maxSq = EspMod.MaxDistance * EspMod.MaxDistance;
 
         if (EspMod.TargetNpcs)
         {
             for (int i = 0; i < EspNpc.All.Count; i++)
             {
-                EspNpc n = EspNpc.All[i];
+                var n = EspNpc.All[i];
                 if (n == null || !n.TryBuildFrame(out EspFrame f)) continue;
-                Vector3 mid = (f.Head + f.Feet) * 0.5f;
-                if (eye.sqrMagnitude > 0.01f && (mid - eye).sqrMagnitude > maxSq) continue;
+                if (eye.sqrMagnitude > 0.01f && (f.Center - eye).sqrMagnitude > maxSq) continue;
                 _frame.Add(f);
             }
         }
-
         if (EspMod.TargetPlayers && EspMod.FusionLoaded)
         {
             for (int i = 0; i < EspPlayer.All.Count; i++)
             {
-                EspPlayer p = EspPlayer.All[i];
+                var p = EspPlayer.All[i];
                 if (p == null || !p.TryBuildFrame(out EspFrame f)) continue;
-                Vector3 mid = (f.Head + f.Feet) * 0.5f;
-                if (eye.sqrMagnitude > 0.01f && (mid - eye).sqrMagnitude > maxSq) continue;
+                if (eye.sqrMagnitude > 0.01f && (f.Center - eye).sqrMagnitude > maxSq) continue;
                 _frame.Add(f);
             }
         }
@@ -170,7 +161,7 @@ public static class EspDraw
         {
             if (Player.Head != null)
             {
-                Transform h = Player.Head;
+                var h = Player.Head;
                 eye = h.position;
                 Vector3 fwd = h.forward; fwd.y = 0f;
                 if (fwd.sqrMagnitude < 0.001f) fwd = h.forward;
@@ -181,14 +172,14 @@ public static class EspDraw
                 return true;
             }
         }
-        catch { /* */ }
-        Camera cam = Camera.main;
+        catch { }
+        var cam = Camera.main;
         if (cam == null) return false;
         eye = cam.transform.position;
-        Vector3 f2 = cam.transform.forward; f2.y = 0f;
-        if (f2.sqrMagnitude < 0.001f) f2 = cam.transform.forward;
-        f2.Normalize();
-        right = Vector3.Cross(Vector3.up, f2).normalized;
+        Vector3 f = cam.transform.forward; f.y = 0f;
+        if (f.sqrMagnitude < 0.001f) f = cam.transform.forward;
+        f.Normalize();
+        right = Vector3.Cross(Vector3.up, f).normalized;
         up = Vector3.up;
         return true;
     }
@@ -196,11 +187,10 @@ public static class EspDraw
     private static void BuildRect(EspFrame f, Vector3 eye, Vector3 right, Vector3 up, out float boxH)
     {
         float halfW = f.Width * 0.5f;
-        Vector3 center = (f.Feet + f.Head) * 0.5f;
+        Vector3 center = f.Center;
 
         float minX = float.MaxValue, maxX = float.MinValue;
         float minY = float.MaxValue, maxY = float.MinValue;
-
         void Exp(Vector3 p)
         {
             Vector3 d = p - center;
@@ -209,18 +199,16 @@ public static class EspDraw
             if (x < minX) minX = x; if (x > maxX) maxX = x;
             if (y < minY) minY = y; if (y > maxY) maxY = y;
         }
-
         Exp(f.Feet - right * halfW); Exp(f.Feet + right * halfW);
         Exp(f.Chest - right * halfW); Exp(f.Chest + right * halfW);
         Exp(f.Head - right * halfW); Exp(f.Head + right * halfW);
 
         minX -= 0.02f; maxX += 0.02f;
         minY -= 0.02f; maxY += 0.02f;
-        boxH = Mathf.Max(0.1f, maxY - minY);
+        boxH = Mathf.Max(0.15f, maxY - minY);
 
         Vector3 toCam = eye - center; toCam.y = 0f;
-        if (toCam.sqrMagnitude > 0.001f)
-            center += toCam.normalized * 0.03f;
+        if (toCam.sqrMagnitude > 0.001f) center += toCam.normalized * 0.03f;
 
         _q[0] = center + right * minX + up * minY;
         _q[1] = center + right * maxX + up * minY;
@@ -228,34 +216,20 @@ public static class EspDraw
         _q[3] = center + right * minX + up * maxY;
     }
 
-    /// <summary>Solid HP: dark track + colored fill. No dancing glow.</summary>
     private static void DrawHp(int idx, EspFrame f, Vector3 right, float fade)
     {
         float hp = Mathf.Clamp01(f.DisplayHp);
-        Vector3 bot = _q[0] - right * 0.07f;
-        Vector3 top = _q[3] - right * 0.07f;
+        Vector3 bot = _q[0] - right * 0.075f;
+        Vector3 top = _q[3] - right * 0.075f;
 
-        float trackW = 0.028f;
-        Color trackCol = new Color(0.08f, 0.08f, 0.1f, 0.9f * fade);
-        SetSeg(_hpTrack[idx], bot, top, trackCol, trackW);
+        SetSeg(_hpTrack[idx], bot, top, new Color(0.05f, 0.05f, 0.07f, 0.9f * fade), 0.032f);
 
-        if (hp <= 0.001f)
-        {
-            _hpFill[idx].enabled = false;
-            return;
-        }
+        if (hp <= 0.001f) { _hpFill[idx].enabled = false; return; }
 
-        Vector3 fillTop = Vector3.Lerp(bot, top, hp);
-        Color fill = HpColor(hp);
-        fill.a = 0.95f * fade;
-        SetSeg(_hpFill[idx], bot, fillTop, fill, trackW * 0.65f);
-    }
-
-    private static Color HpColor(float hp)
-    {
-        if (hp > 0.5f)
-            return Color.Lerp(new Color(0.95f, 0.85f, 0.15f), new Color(0.2f, 0.95f, 0.35f), (hp - 0.5f) * 2f);
-        return Color.Lerp(new Color(0.95f, 0.12f, 0.1f), new Color(0.95f, 0.85f, 0.15f), hp * 2f);
+        // Strict bands: green / yellow / red — no lerp, no pulse
+        Color fill = hp > 0.66f ? HpGreen : (hp > 0.33f ? HpYellow : HpRed);
+        fill.a = fade;
+        SetSeg(_hpFill[idx], bot, Vector3.Lerp(bot, top, hp), fill, 0.022f);
     }
 
     private static void PlaceSkull(int idx, EspFrame f, Vector3 eye, Vector3 up, float boxH, float fade)
@@ -264,8 +238,9 @@ public static class EspDraw
         if (go == null) return;
         go.SetActive(true);
 
-        float size = Mathf.Clamp(boxH * 0.42f, 0.18f, 0.36f);
-        Vector3 pos = f.Head + up * (size * 0.55f + 0.03f);
+        // BIG — centered on corpse torso
+        float size = Mathf.Clamp(Mathf.Max(boxH * 0.75f, f.Width * 1.35f), 0.45f, 0.95f);
+        Vector3 pos = f.Center + up * 0.05f;
 
         go.transform.position = pos;
         Vector3 toCam = eye - pos;
@@ -275,19 +250,16 @@ public static class EspDraw
 
         var mr = go.GetComponent<MeshRenderer>();
         if (mr != null && mr.material != null)
-            mr.material.color = new Color(1f, 1f, 1f, fade);
+            mr.material.color = new Color(1f, 1f, 1f, Mathf.Clamp01(fade));
     }
 
     private static void SetSeg(LineRenderer lr, Vector3 a, Vector3 b, Color col, float w)
     {
         if (lr == null) return;
         lr.positionCount = 2;
-        lr.SetPosition(0, a);
-        lr.SetPosition(1, b);
-        lr.startColor = col;
-        lr.endColor = col;
-        lr.startWidth = w;
-        lr.endWidth = w;
+        lr.SetPosition(0, a); lr.SetPosition(1, b);
+        lr.startColor = col; lr.endColor = col;
+        lr.startWidth = w; lr.endWidth = w;
         lr.enabled = true;
     }
 
@@ -310,7 +282,6 @@ public static class EspDraw
             lr.useWorldSpace = true;
             lr.shadowCastingMode = ShadowCastingMode.Off;
             lr.receiveShadows = false;
-            lr.allowOcclusionWhenDynamic = false;
             lr.numCapVertices = 2;
             lr.alignment = LineAlignment.View;
             lr.enabled = false;
@@ -339,14 +310,10 @@ public static class EspDraw
 
     private static void HideAll()
     {
-        for (int i = 0; i < _boxLines.Count; i++)
-            if (_boxLines[i] != null) _boxLines[i].enabled = false;
-        for (int i = 0; i < _hpTrack.Count; i++)
-            if (_hpTrack[i] != null) _hpTrack[i].enabled = false;
-        for (int i = 0; i < _hpFill.Count; i++)
-            if (_hpFill[i] != null) _hpFill[i].enabled = false;
-        for (int i = 0; i < _skulls.Count; i++)
-            if (_skulls[i] != null) _skulls[i].SetActive(false);
+        for (int i = 0; i < _boxLines.Count; i++) if (_boxLines[i] != null) _boxLines[i].enabled = false;
+        for (int i = 0; i < _hpTrack.Count; i++) if (_hpTrack[i] != null) _hpTrack[i].enabled = false;
+        for (int i = 0; i < _hpFill.Count; i++) if (_hpFill[i] != null) _hpFill[i].enabled = false;
+        for (int i = 0; i < _skulls.Count; i++) if (_skulls[i] != null) _skulls[i].SetActive(false);
     }
 
     private static bool EnsureMaterials()
@@ -362,16 +329,10 @@ public static class EspDraw
                 if (!_loggedMat) { _loggedMat = true; MelonLogger.Error("ESP: no shader"); }
                 return false;
             }
-            _lineMat = MakeMat(sh);
-            _hpMat = MakeMat(sh);
-            ApplyZTest();
+            _lineMat = MakeMat(sh); _hpMat = MakeMat(sh); ApplyZTest();
             return true;
         }
-        catch (Exception ex)
-        {
-            MelonLogger.Error($"ESP material: {ex.Message}");
-            return false;
-        }
+        catch (Exception ex) { MelonLogger.Error($"ESP material: {ex.Message}"); return false; }
     }
 
     private static Material MakeMat(Shader sh)

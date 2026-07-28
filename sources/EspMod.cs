@@ -36,6 +36,8 @@ public class EspMod : MelonMod
     public static float RainbowSpeed = 0.35f;
     public static float HpAnimSpeed = 2.5f;
 
+    public static readonly Color DeadColor = new Color(1f, 0.08f, 0.08f, 1f);
+
     public static bool FusionLoaded { get; private set; }
     public static bool LevelReady { get; private set; }
 

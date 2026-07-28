@@ -3,28 +3,22 @@ using Object = UnityEngine.Object;
 
 namespace BePrime.Esp;
 
-/// <summary>Realistic minimal skull mark — no cartoon style.</summary>
+/// <summary>Big emoji-style ☠️ skull — centered on corpse.</summary>
 public static class EspSkull
 {
     private static Texture2D _tex;
     private static Material _mat;
 
-    public static Material Material
-    {
-        get { Ensure(); return _mat; }
-    }
-
-    public static Texture2D Texture
-    {
-        get { Ensure(); return _tex; }
-    }
+    public static Material Material { get { Ensure(); return _mat; } }
+    public static Texture2D Texture { get { Ensure(); return _tex; } }
 
     public static void Ensure()
     {
         if (_tex != null && _mat != null)
             return;
 
-        const int S = 128;
+        // Classic ☠️ silhouette: round white skull, black sockets, nose, jaw teeth
+        const int S = 256;
         _tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
         _tex.filterMode = FilterMode.Bilinear;
         _tex.wrapMode = TextureWrapMode.Clamp;
@@ -34,42 +28,41 @@ public static class EspSkull
         for (int i = 0; i < px.Length; i++)
             px[i] = new Color32(0, 0, 0, 0);
 
-        // Bone ivory — muted, not cartoon white
-        var bone = new Color32(210, 200, 185, 255);
-        var boneDark = new Color32(120, 105, 95, 255);
-        var socket = new Color32(18, 14, 14, 255);
-        var line = new Color32(55, 40, 35, 230);
+        var white = new Color32(255, 255, 255, 255);
+        var black = new Color32(0, 0, 0, 255);
 
-        // Cranium
-        FillEllipse(px, S, 64, 68, 36, 34, bone);
-        // Shade bottom of skull
-        FillEllipse(px, S, 64, 78, 34, 18, boneDark);
-        FillEllipse(px, S, 64, 68, 30, 28, bone);
+        // Soft shadow ring
+        FillCircle(px, S, 128, 128, 110, new Color32(0, 0, 0, 70));
 
-        // Eye sockets — deep oval, no glint
-        FillEllipse(px, S, 48, 70, 10, 12, socket);
-        FillEllipse(px, S, 80, 70, 10, 12, socket);
+        // Main cranium (emoji round head)
+        FillCircle(px, S, 128, 140, 92, white);
+        // Jaw block
+        FillRect(px, S, 58, 48, 140, 70, white);
+        // Round jaw bottom
+        FillCircle(px, S, 128, 55, 55, white);
 
-        // Nasal cavity — simple triangle wedge
-        FillEllipse(px, S, 64, 52, 5, 8, socket);
-        FillEllipse(px, S, 64, 48, 3, 4, socket);
+        // Eye sockets — large black circles like ☠️
+        FillCircle(px, S, 95, 145, 28, black);
+        FillCircle(px, S, 161, 145, 28, black);
 
-        // Upper teeth bar
-        FillRect(px, S, 46, 34, 36, 8, bone);
-        for (int t = 0; t < 5; t++)
-            FillRect(px, S, 48 + t * 7, 34, 1, 8, socket);
+        // Nose — inverted heart / triangle
+        FillTriangle(px, S, 128, 95, 112, 125, 144, 125, black);
+        FillCircle(px, S, 128, 118, 10, black);
 
-        // Jaw
-        FillEllipse(px, S, 64, 30, 22, 12, bone);
-        FillEllipse(px, S, 64, 28, 16, 7, socket); // mouth void
-        // lower teeth
-        FillRect(px, S, 50, 30, 28, 4, bone);
-        for (int t = 0; t < 4; t++)
-            FillRect(px, S, 52 + t * 7, 30, 1, 4, socket);
+        // Mouth opening
+        FillRect(px, S, 78, 58, 100, 28, black);
+        // Teeth — vertical white bars over black mouth
+        for (int t = 0; t < 6; t++)
+        {
+            int x = 86 + t * 14;
+            FillRect(px, S, x, 58, 8, 28, white);
+        }
+        // Horizontal tooth gap line
+        FillRect(px, S, 78, 70, 100, 4, black);
 
-        // Subtle outline
-        StrokeEllipse(px, S, 64, 68, 36, 34, line, 1);
-        StrokeEllipse(px, S, 64, 30, 22, 12, line, 1);
+        // Crossbones behind (☠️ style) — two diagonals under skull
+        DrawBone(px, S, 40, 40, 216, 100, white, black);
+        DrawBone(px, S, 216, 40, 40, 100, white, black);
 
         _tex.SetPixels32(px);
         _tex.Apply(false, true);
@@ -91,6 +84,7 @@ public static class EspSkull
         _mat.SetInt("_ZTest", EspMod.ThroughWalls
             ? (int)UnityEngine.Rendering.CompareFunction.Always
             : (int)UnityEngine.Rendering.CompareFunction.LessEqual);
+        _mat.SetInt("_ZWrite", 0);
     }
 
     public static void Dispose()
@@ -99,34 +93,16 @@ public static class EspSkull
         if (_tex != null) { Object.Destroy(_tex); _tex = null; }
     }
 
-    private static void FillEllipse(Color32[] px, int s, int cx, int cy, int rx, int ry, Color32 col)
+    private static void FillCircle(Color32[] px, int s, int cx, int cy, int r, Color32 col)
     {
-        int x0 = Mathf.Max(0, cx - rx - 1);
-        int x1 = Mathf.Min(s - 1, cx + rx + 1);
-        int y0 = Mathf.Max(0, cy - ry - 1);
-        int y1 = Mathf.Min(s - 1, cy + ry + 1);
-        for (int y = y0; y <= y1; y++)
-        for (int x = x0; x <= x1; x++)
+        int r2 = r * r;
+        for (int y = cy - r; y <= cy + r; y++)
+        for (int x = cx - r; x <= cx + r; x++)
         {
-            float dx = (x - cx) / (float)rx;
-            float dy = (y - cy) / (float)ry;
-            if (dx * dx + dy * dy <= 1f)
+            if ((uint)x >= (uint)s || (uint)y >= (uint)s) continue;
+            int dx = x - cx, dy = y - cy;
+            if (dx * dx + dy * dy <= r2)
                 Blend(px, s, x, y, col);
-        }
-    }
-
-    private static void StrokeEllipse(Color32[] px, int s, int cx, int cy, int rx, int ry, Color32 col, int thick)
-    {
-        for (int a = 0; a < 360; a++)
-        {
-            float r = a * Mathf.Deg2Rad;
-            for (int t = 0; t < thick; t++)
-            {
-                int x = cx + Mathf.RoundToInt((rx - t) * Mathf.Cos(r));
-                int y = cy + Mathf.RoundToInt((ry - t) * Mathf.Sin(r));
-                if ((uint)x < (uint)s && (uint)y < (uint)s)
-                    px[y * s + x] = col;
-            }
         }
     }
 
@@ -138,8 +114,60 @@ public static class EspSkull
                 Blend(px, s, xx, yy, col);
     }
 
+    private static void FillTriangle(Color32[] px, int s, int x0, int y0, int x1, int y1, int x2, int y2, Color32 col)
+    {
+        int minX = Mathf.Min(x0, Mathf.Min(x1, x2));
+        int maxX = Mathf.Max(x0, Mathf.Max(x1, x2));
+        int minY = Mathf.Min(y0, Mathf.Min(y1, y2));
+        int maxY = Mathf.Max(y0, Mathf.Max(y1, y2));
+        for (int y = minY; y <= maxY; y++)
+        for (int x = minX; x <= maxX; x++)
+        {
+            if ((uint)x >= (uint)s || (uint)y >= (uint)s) continue;
+            if (PointInTri(x, y, x0, y0, x1, y1, x2, y2))
+                Blend(px, s, x, y, col);
+        }
+    }
+
+    private static bool PointInTri(int px, int py, int x0, int y0, int x1, int y1, int x2, int y2)
+    {
+        float d1 = Sign(px, py, x0, y0, x1, y1);
+        float d2 = Sign(px, py, x1, y1, x2, y2);
+        float d3 = Sign(px, py, x2, y2, x0, y0);
+        bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+        bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+        return !(hasNeg && hasPos);
+    }
+
+    private static float Sign(int px, int py, int x0, int y0, int x1, int y1)
+        => (px - x1) * (y0 - y1) - (x0 - x1) * (py - y1);
+
+    private static void DrawBone(Color32[] px, int s, int x0, int y0, int x1, int y1, Color32 bone, Color32 outline)
+    {
+        // Thick diagonal shaft
+        int steps = 120;
+        for (int i = 0; i <= steps; i++)
+        {
+            float t = i / (float)steps;
+            int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, t));
+            int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, t));
+            FillCircle(px, s, x, y, 7, outline);
+            FillCircle(px, s, x, y, 5, bone);
+        }
+        // Knobs at ends
+        FillCircle(px, s, x0, y0, 14, outline);
+        FillCircle(px, s, x0, y0, 11, bone);
+        FillCircle(px, s, x1, y1, 14, outline);
+        FillCircle(px, s, x1, y1, 11, bone);
+    }
+
     private static void Blend(Color32[] px, int s, int x, int y, Color32 src)
     {
+        if (src.a == 255)
+        {
+            px[y * s + x] = src;
+            return;
+        }
         int i = y * s + x;
         Color32 dst = px[i];
         float a = src.a / 255f;
