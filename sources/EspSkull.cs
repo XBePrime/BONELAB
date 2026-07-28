@@ -8,7 +8,6 @@ public static class EspSkull
 {
     private static Texture2D _tex;
     private static Material _mat;
-    private static Sprite _sprite;
 
     public static Material Material
     {
@@ -108,7 +107,6 @@ public static class EspSkull
     {
         if (_mat != null) { Object.Destroy(_mat); _mat = null; }
         if (_tex != null) { Object.Destroy(_tex); _tex = null; }
-        _sprite = null;
     }
 
     private static void FillEllipse(Color32[] px, int s, int cx, int cy, int rx, int ry, Color32 col)
