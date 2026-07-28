@@ -12,8 +12,9 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
 
+  <!-- Il2Cpp game DLLs from VPN lemonloader (BONELAB-libs), loader deps local. -->
   <PropertyGroup>
-    <RefsRoot Condition="'$(RefsRoot)' == ''">/tmp/sandbox/be-prime-refs</RefsRoot>
+    <RefsRoot Condition="'$(RefsRoot)' == ''">/tmp/esp-refs</RefsRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,7 +27,6 @@
     <Reference Include="Il2Cppmscorlib"><HintPath>$(RefsRoot)/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(RefsRoot)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(RefsRoot)/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.RenderPipelines.Core.Runtime"><HintPath>$(RefsRoot)/Unity.RenderPipelines.Core.Runtime.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2CppSLZ.Marrow"><HintPath>$(RefsRoot)/Il2CppSLZ.Marrow.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp"><HintPath>$(RefsRoot)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="LabFusion"><HintPath>$(RefsRoot)/LabFusion.dll</HintPath><Private>false</Private></Reference>

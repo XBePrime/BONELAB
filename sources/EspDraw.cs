@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using BoneLib;
+using Il2CppInterop.Runtime;
 using MelonLoader;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -8,30 +9,45 @@ using UnityEngine.Rendering;
 namespace BePrime.Esp;
 
 /// <summary>
-/// World-space GL box / corner-box renderer. URP + built-in safe.
+/// World-space GL box / corner-box renderer.
+/// Hooks are deferred — Il2Cpp Camera statics are unsafe during Melon init.
 /// </summary>
 public static class EspDraw
 {
     private static Material _mat;
     private static bool _hooked;
     private static bool _loggedShader;
-    private static Action<Camera> _postRenderAction;
-    private static Action<ScriptableRenderContext, Camera> _endCameraAction;
+    private static Camera.CameraCallback _postRenderCb;
+    private static Il2CppSystem.Action<ScriptableRenderContext, Camera> _endCameraAction;
 
     // Scratch buffers — zero alloc in hot path
     private static readonly Vector3[] _corners = new Vector3[8];
     private static readonly List<(Bounds bounds, Color color)> _frame = new List<(Bounds, Color)>(64);
 
+    /// <summary>
+    /// Safe to call every frame; no-ops after first successful hook.
+    /// Must NOT run in OnInitializeMelon (Quest Il2Cpp crash).
+    /// </summary>
     public static void EnsureHooked()
     {
         if (_hooked)
             return;
-        _hooked = true;
+
+        // Wait until Unity cameras exist — init-time static access crashes LemonLoader.
+        if (Camera.main == null && Camera.allCamerasCount <= 0)
+            return;
+
+        bool any = false;
 
         try
         {
-            _postRenderAction = OnPostRender;
-            Camera.onPostRender += _postRenderAction;
+            // CameraCallback has implicit conversion from System.Action<Camera>
+            _postRenderCb = (Action<Camera>)OnPostRender;
+            Camera.CameraCallback current = Camera.onPostRender;
+            Camera.onPostRender = current == null
+                ? _postRenderCb
+                : (Camera.CameraCallback)Il2CppSystem.Delegate.Combine(current, _postRenderCb);
+            any = true;
         }
         catch (Exception ex)
         {
@@ -40,12 +56,23 @@ public static class EspDraw
 
         try
         {
-            _endCameraAction = OnEndCameraRendering;
-            RenderPipelineManager.endCameraRendering += _endCameraAction;
+            _endCameraAction = DelegateSupport.ConvertDelegate<Il2CppSystem.Action<ScriptableRenderContext, Camera>>(
+                (Action<ScriptableRenderContext, Camera>)OnEndCameraRendering);
+            if (_endCameraAction != null)
+            {
+                RenderPipelineManager.add_endCameraRendering(_endCameraAction);
+                any = true;
+            }
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"ESP URP endCameraRendering hook: {ex.Message}");
+            MelonLogger.Warning($"ESP endCameraRendering hook: {ex.Message}");
+        }
+
+        if (any)
+        {
+            _hooked = true;
+            MelonLogger.Msg("ESP draw hooks ready");
         }
     }
 
@@ -54,16 +81,22 @@ public static class EspDraw
         if (!_hooked)
             return;
         _hooked = false;
+
         try
         {
-            if (_postRenderAction != null)
-                Camera.onPostRender -= _postRenderAction;
+            if (_postRenderCb != null)
+            {
+                Camera.CameraCallback current = Camera.onPostRender;
+                if (current != null)
+                    Camera.onPostRender = (Camera.CameraCallback)Il2CppSystem.Delegate.Remove(current, _postRenderCb);
+            }
         }
         catch { /* ignore */ }
+
         try
         {
             if (_endCameraAction != null)
-                RenderPipelineManager.endCameraRendering -= _endCameraAction;
+                RenderPipelineManager.remove_endCameraRendering(_endCameraAction);
         }
         catch { /* ignore */ }
     }
@@ -111,7 +144,6 @@ public static class EspDraw
                 float dsq = (b.center - eye).sqrMagnitude;
                 if (dsq > maxSq)
                     continue;
-                // Slightly brighter for players
                 Color pc = baseColor;
                 pc.r = Mathf.Min(1f, pc.r * 1.05f + 0.05f);
                 _frame.Add((b, Fade(pc, dsq, maxSq)));
@@ -121,7 +153,6 @@ public static class EspDraw
 
     private static Color Fade(Color c, float dsq, float maxSq)
     {
-        // Soft distance fade past 55% of max range
         float t = Mathf.Sqrt(dsq) / EspMod.MaxDistance;
         float a = t < 0.55f ? 1f : Mathf.Lerp(1f, 0.15f, (t - 0.55f) / 0.45f);
         c.a = a;
@@ -157,12 +188,6 @@ public static class EspDraw
         if (cam == null || !cam.enabled || !cam.isActiveAndEnabled)
             return false;
 
-        // Skip UI / overlay / scene view style cams
-        if (cam.targetTexture != null && cam.cameraType == CameraType.Game)
-        {
-            // Still allow eye cameras that render to textures in VR
-        }
-
         try
         {
             if (Player.Head != null)
@@ -174,7 +199,6 @@ public static class EspDraw
         }
         catch { /* ignore */ }
 
-        // Fallback: main / stereo eye cameras
         if (cam == Camera.main)
             return true;
         if (cam.stereoTargetEye != StereoTargetEyeMask.None)
@@ -201,7 +225,6 @@ public static class EspDraw
 
         _mat.SetPass(0);
 
-        // Soft glow pass (slightly expanded, low alpha) then crisp pass
         DrawFramePass(expand: 1.025f, alphaMul: 0.22f);
         DrawFramePass(expand: 1f, alphaMul: 1f);
 
@@ -241,12 +264,6 @@ public static class EspDraw
     {
         Vector3 e = b.extents;
         Vector3 c = b.center;
-        // 0---1
-        // |   |
-        // 3---2   bottom
-        // 4---5
-        // |   |
-        // 7---6   top
         _corners[0] = c + new Vector3(-e.x, -e.y, -e.z);
         _corners[1] = c + new Vector3(e.x, -e.y, -e.z);
         _corners[2] = c + new Vector3(e.x, -e.y, e.z);
@@ -259,17 +276,13 @@ public static class EspDraw
 
     private static void DrawFullBox()
     {
-        // Bottom
         Seg(0, 1); Seg(1, 2); Seg(2, 3); Seg(3, 0);
-        // Top
         Seg(4, 5); Seg(5, 6); Seg(6, 7); Seg(7, 4);
-        // Uprights
         Seg(0, 4); Seg(1, 5); Seg(2, 6); Seg(3, 7);
     }
 
     private static void DrawCornerBox(float t)
     {
-        // Each corner: three short axes
         Corner(0, 1, 3, 4, t);
         Corner(1, 0, 2, 5, t);
         Corner(2, 1, 3, 6, t);
@@ -343,7 +356,6 @@ public static class EspDraw
     {
         if (_mat == null)
             return;
-        // Always = through walls; LessEqual = depth tested
         _mat.SetInt("_ZTest", EspMod.ThroughWalls
             ? (int)CompareFunction.Always
             : (int)CompareFunction.LessEqual);

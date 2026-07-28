@@ -47,12 +47,13 @@ public class EspMod : MelonMod
         FusionLoaded = AccessTools.TypeByName("LabFusion.Entities.NetworkPlayer") != null;
 
         Prefs.Create();
-        EspDraw.EnsureHooked();
+        // Do NOT hook Camera / RenderPipeline here — Il2Cpp statics crash LemonLoader at init.
 
         Hooking.OnLevelLoaded += _ =>
         {
             EspNpc.All.Clear();
             EspPlayer.Clear();
+            EspDraw.EnsureHooked();
         };
         Hooking.OnLevelUnloaded += () =>
         {
@@ -60,27 +61,27 @@ public class EspMod : MelonMod
             EspPlayer.Clear();
         };
 
-        HarmonyInstance.Patch(
-            typeof(TriggerRefProxy).GetMethod("Start", AccessTools.all),
-            postfix: new HarmonyMethod(typeof(EspMod), nameof(AiPatch)));
-
-        HarmonyInstance.Patch(
-            typeof(AIBrain).GetMethod("OnResurrection", AccessTools.all),
-            postfix: new HarmonyMethod(typeof(EspMod), nameof(AiResurrectionPatch)));
-
-        HarmonyInstance.Patch(
-            typeof(BehaviourBaseNav).GetMethod("KillStart", AccessTools.all),
-            postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatch)));
-
         try
         {
+            HarmonyInstance.Patch(
+                typeof(TriggerRefProxy).GetMethod("Start", AccessTools.all),
+                postfix: new HarmonyMethod(typeof(EspMod), nameof(AiPatch)));
+
+            HarmonyInstance.Patch(
+                typeof(AIBrain).GetMethod("OnResurrection", AccessTools.all),
+                postfix: new HarmonyMethod(typeof(EspMod), nameof(AiResurrectionPatch)));
+
+            HarmonyInstance.Patch(
+                typeof(BehaviourBaseNav).GetMethod("KillStart", AccessTools.all),
+                postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatch)));
+
             HarmonyInstance.Patch(
                 typeof(BehaviourCrablet).GetMethod("KillStart", AccessTools.all),
                 postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatchCrablet)));
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"ESP Crablet patch skipped: {ex.Message}");
+            MelonLogger.Error($"ESP Harmony patch failed: {ex}");
         }
 
         BuildMenu();
@@ -99,6 +100,8 @@ public class EspMod : MelonMod
 
     public override void OnLateUpdate()
     {
+        EspDraw.EnsureHooked();
+
         if (!Enabled)
             return;
 
