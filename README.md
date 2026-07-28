@@ -37,6 +37,10 @@ This repo is the release hub — each mod has its own branch.
 <div align="center">
 
 ### Aimbot
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/icon.png" alt="Aimbot" width="72" />
+
+<br/>
+
 Precision aim assist — NPCs & LabFusion players
 
 <br/>
@@ -75,6 +79,10 @@ ESP — 2D boxes · HP · dead red
 <div align="center">
 
 ### NERVE
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/nerve.png" alt="NERVE" width="72" />
+
+<br/>
+
 Bare-hand Quest tracking — every finger synced to the rig
 
 <br/>
