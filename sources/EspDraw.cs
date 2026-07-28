@@ -19,10 +19,8 @@ public static class EspDraw
     private static readonly List<LineRenderer> _boxLines = new List<LineRenderer>(256);
     private static readonly List<LineRenderer> _hpTrack = new List<LineRenderer>(64);
     private static readonly List<LineRenderer> _hpFill = new List<LineRenderer>(64);
-    private static readonly List<GameObject> _skulls = new List<GameObject>(64);
     private static readonly Vector3[] _q = new Vector3[4];
 
-    // Discrete HP colors — no gradients, no pulse
     private static readonly Color HpGreen = new Color(0.15f, 0.95f, 0.25f, 1f);
     private static readonly Color HpYellow = new Color(1f, 0.9f, 0.12f, 1f);
     private static readonly Color HpRed = new Color(1f, 0.12f, 0.1f, 1f);
@@ -30,14 +28,10 @@ public static class EspDraw
     public static void Reset()
     {
         DestroyLrs(_boxLines); DestroyLrs(_hpTrack); DestroyLrs(_hpFill);
-        for (int i = 0; i < _skulls.Count; i++)
-            if (_skulls[i] != null) Object.Destroy(_skulls[i]);
-        _skulls.Clear();
         if (_root != null) Object.Destroy(_root.gameObject);
         _root = null; _frame.Clear();
         if (_lineMat != null) { Object.Destroy(_lineMat); _lineMat = null; }
         if (_hpMat != null) { Object.Destroy(_hpMat); _hpMat = null; }
-        EspSkull.Dispose();
     }
 
     private static void DestroyLrs(List<LineRenderer> list)
@@ -55,7 +49,7 @@ public static class EspDraw
             if (_frame.Count == 0) { HideAll(); return; }
             EnsureRoot();
             if (_root == null || !EnsureMaterials()) return;
-            ApplyZTest(); EspSkull.ApplyZTest();
+            ApplyZTest();
             if (!TryGetCamAxes(out Vector3 eye, out Vector3 right, out Vector3 up)) return;
 
             bool corners = EspMod.Style == 1;
@@ -63,7 +57,6 @@ public static class EspDraw
             EnsureLinePool(_boxLines, _frame.Count * per, _lineMat);
             EnsureLinePool(_hpTrack, EspMod.ShowHp ? _frame.Count : 0, _hpMat);
             EnsureLinePool(_hpFill, EspMod.ShowHp ? _frame.Count : 0, _hpMat);
-            EnsureSkullPool(_frame.Count);
 
             float w = Mathf.Clamp(EspMod.LineWidth, 0.003f, 0.04f);
             float ct = EspMod.CornerSize;
@@ -72,7 +65,7 @@ public static class EspDraw
             for (int t = 0; t < _frame.Count; t++)
             {
                 EspFrame f = _frame[t];
-                BuildRect(f, eye, right, up, out float boxH);
+                BuildRect(f, eye, right, up);
 
                 Color col = f.Dead ? EspMod.DeadColor : f.Color;
                 float dist = Vector3.Distance(eye, f.Center);
@@ -95,7 +88,6 @@ public static class EspDraw
                         SetSeg(_boxLines[li++], _q[e], _q[(e + 1) % 4], col, w);
                 }
 
-                // HP only when alive + valid reading
                 if (EspMod.ShowHp && f.HasHp && !f.Dead)
                     DrawHp(t, f, right, fade);
                 else
@@ -103,12 +95,6 @@ public static class EspDraw
                     if (t < _hpTrack.Count && _hpTrack[t] != null) _hpTrack[t].enabled = false;
                     if (t < _hpFill.Count && _hpFill[t] != null) _hpFill[t].enabled = false;
                 }
-
-                // BIG skull dead-center on corpse
-                if (f.Dead && EspMod.ShowSkull)
-                    PlaceSkull(t, f, eye, up, boxH, fade);
-                else if (t < _skulls.Count && _skulls[t] != null)
-                    _skulls[t].SetActive(false);
             }
 
             for (; li < _boxLines.Count; li++)
@@ -118,8 +104,6 @@ public static class EspDraw
                 if (_hpTrack[t] != null) _hpTrack[t].enabled = false;
                 if (t < _hpFill.Count && _hpFill[t] != null) _hpFill[t].enabled = false;
             }
-            for (int t = _frame.Count; t < _skulls.Count; t++)
-                if (_skulls[t] != null) _skulls[t].SetActive(false);
         }
         catch (Exception ex) { MelonLogger.Warning($"ESP draw: {ex.Message}"); }
     }
@@ -184,11 +168,10 @@ public static class EspDraw
         return true;
     }
 
-    private static void BuildRect(EspFrame f, Vector3 eye, Vector3 right, Vector3 up, out float boxH)
+    private static void BuildRect(EspFrame f, Vector3 eye, Vector3 right, Vector3 up)
     {
         float halfW = f.Width * 0.5f;
         Vector3 center = f.Center;
-
         float minX = float.MaxValue, maxX = float.MinValue;
         float minY = float.MaxValue, maxY = float.MinValue;
         void Exp(Vector3 p)
@@ -202,10 +185,8 @@ public static class EspDraw
         Exp(f.Feet - right * halfW); Exp(f.Feet + right * halfW);
         Exp(f.Chest - right * halfW); Exp(f.Chest + right * halfW);
         Exp(f.Head - right * halfW); Exp(f.Head + right * halfW);
-
         minX -= 0.02f; maxX += 0.02f;
         minY -= 0.02f; maxY += 0.02f;
-        boxH = Mathf.Max(0.15f, maxY - minY);
 
         Vector3 toCam = eye - center; toCam.y = 0f;
         if (toCam.sqrMagnitude > 0.001f) center += toCam.normalized * 0.03f;
@@ -223,34 +204,12 @@ public static class EspDraw
         Vector3 top = _q[3] - right * 0.075f;
 
         SetSeg(_hpTrack[idx], bot, top, new Color(0.05f, 0.05f, 0.07f, 0.9f * fade), 0.032f);
-
         if (hp <= 0.001f) { _hpFill[idx].enabled = false; return; }
 
-        // Strict bands: green / yellow / red — no lerp, no pulse
+        // Strict bands only
         Color fill = hp > 0.66f ? HpGreen : (hp > 0.33f ? HpYellow : HpRed);
         fill.a = fade;
         SetSeg(_hpFill[idx], bot, Vector3.Lerp(bot, top, hp), fill, 0.022f);
-    }
-
-    private static void PlaceSkull(int idx, EspFrame f, Vector3 eye, Vector3 up, float boxH, float fade)
-    {
-        GameObject go = _skulls[idx];
-        if (go == null) return;
-        go.SetActive(true);
-
-        // BIG — centered on corpse torso
-        float size = Mathf.Clamp(Mathf.Max(boxH * 0.75f, f.Width * 1.35f), 0.45f, 0.95f);
-        Vector3 pos = f.Center + up * 0.05f;
-
-        go.transform.position = pos;
-        Vector3 toCam = eye - pos;
-        if (toCam.sqrMagnitude < 0.001f) toCam = Vector3.forward;
-        go.transform.rotation = Quaternion.LookRotation(-toCam.normalized, up);
-        go.transform.localScale = new Vector3(size, size, size);
-
-        var mr = go.GetComponent<MeshRenderer>();
-        if (mr != null && mr.material != null)
-            mr.material.color = new Color(1f, 1f, 1f, Mathf.Clamp01(fade));
     }
 
     private static void SetSeg(LineRenderer lr, Vector3 a, Vector3 b, Color col, float w)
@@ -259,6 +218,12 @@ public static class EspDraw
         lr.positionCount = 2;
         lr.SetPosition(0, a); lr.SetPosition(1, b);
         lr.startColor = col; lr.endColor = col;
+        // Force solid vertex color (Quest shaders sometimes ignore start/end alone)
+        var g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(col, 0f), new GradientColorKey(col, 1f) },
+            new[] { new GradientAlphaKey(col.a, 0f), new GradientAlphaKey(col.a, 1f) });
+        lr.colorGradient = g;
         lr.startWidth = w; lr.endWidth = w;
         lr.enabled = true;
     }
@@ -289,31 +254,11 @@ public static class EspDraw
         }
     }
 
-    private static void EnsureSkullPool(int need)
-    {
-        EspSkull.Ensure();
-        while (_skulls.Count < need)
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            go.name = "esp_skull_" + _skulls.Count;
-            go.transform.SetParent(_root, false);
-            Object.Destroy(go.GetComponent<Collider>());
-            var mr = go.GetComponent<MeshRenderer>();
-            mr.sharedMaterial = EspSkull.Material;
-            mr.material.mainTexture = EspSkull.Texture;
-            mr.shadowCastingMode = ShadowCastingMode.Off;
-            mr.receiveShadows = false;
-            go.SetActive(false);
-            _skulls.Add(go);
-        }
-    }
-
     private static void HideAll()
     {
         for (int i = 0; i < _boxLines.Count; i++) if (_boxLines[i] != null) _boxLines[i].enabled = false;
         for (int i = 0; i < _hpTrack.Count; i++) if (_hpTrack[i] != null) _hpTrack[i].enabled = false;
         for (int i = 0; i < _hpFill.Count; i++) if (_hpFill[i] != null) _hpFill[i].enabled = false;
-        for (int i = 0; i < _skulls.Count; i++) if (_skulls[i] != null) _skulls[i].SetActive(false);
     }
 
     private static bool EnsureMaterials()

@@ -6,11 +6,11 @@
 
 **ESP for BONELAB**
 
-2D boxes · HP bars · Death skulls · NPCs · LabFusion players
+2D boxes · HP bars · NPCs · LabFusion players
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.0.6-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.0.7-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,9 +18,9 @@
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/esp-v1.0.6"><img src="https://img.shields.io/badge/%20-Release_v1.0.6-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/esp-v1.0.7"><img src="https://img.shields.io/badge/%20-Release_v1.0.7-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.6/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.7/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
 
@@ -33,10 +33,10 @@
 | | |
 |---|---|
 | **2D Box / Corners** | Camera-facing frames |
-| **HP bar** | Animated green→red |
-| **Death** | Red box + skull icon |
-| **NPCs** | Full body (feet→head) |
-| **Players** | Heart→head + 3 cm |
+| **HP bar** | Green / yellow / red bands |
+| **Death** | Red box (players + NPCs) |
+| **NPCs** | HP from spawn HP, not maxHitPoints |
+| **Players** | Fusion DYING/DEATH → red |
 | **Rainbow / Color** | Custom RGB or HSV cycle |
 
 ---

@@ -21,7 +21,6 @@ public static class Prefs
     public static MelonPreferences_Entry<float> CornerSize;
     public static MelonPreferences_Entry<bool> ShowDead;
     public static MelonPreferences_Entry<bool> ShowHp;
-    public static MelonPreferences_Entry<bool> ShowSkull;
     public static MelonPreferences_Entry<float> RainbowSpeed;
     public static MelonPreferences_Entry<float> HpAnimSpeed;
 
@@ -47,7 +46,6 @@ public static class Prefs
         CornerSize = Category.CreateEntry("CornerSize", EspMod.CornerSize);
         ShowDead = Category.CreateEntry("ShowDead", EspMod.ShowDead);
         ShowHp = Category.CreateEntry("ShowHp", EspMod.ShowHp);
-        ShowSkull = Category.CreateEntry("ShowSkull", EspMod.ShowSkull);
         RainbowSpeed = Category.CreateEntry("RainbowSpeed", EspMod.RainbowSpeed);
         HpAnimSpeed = Category.CreateEntry("HpAnimSpeed", EspMod.HpAnimSpeed);
 
@@ -65,7 +63,6 @@ public static class Prefs
         EspMod.CornerSize = Mathf.Clamp(CornerSize.Value, 0.1f, 0.5f);
         EspMod.ShowDead = ShowDead.Value;
         EspMod.ShowHp = ShowHp.Value;
-        EspMod.ShowSkull = ShowSkull.Value;
         EspMod.RainbowSpeed = Mathf.Clamp(RainbowSpeed.Value, 0.05f, 2f);
         EspMod.HpAnimSpeed = Mathf.Clamp(HpAnimSpeed.Value, 0.5f, 8f);
     }
@@ -105,7 +102,6 @@ public static class Prefs
             CornerSize.Value = EspMod.CornerSize;
             ShowDead.Value = EspMod.ShowDead;
             ShowHp.Value = EspMod.ShowHp;
-            ShowSkull.Value = EspMod.ShowSkull;
             RainbowSpeed.Value = EspMod.RainbowSpeed;
             HpAnimSpeed.Value = EspMod.HpAnimSpeed;
             MelonPreferences.Save();

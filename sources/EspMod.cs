@@ -32,7 +32,6 @@ public class EspMod : MelonMod
     public static float CornerSize = 0.28f;
     public static bool ShowDead = true;
     public static bool ShowHp = true;
-    public static bool ShowSkull = true;
     public static float RainbowSpeed = 0.35f;
     public static float HpAnimSpeed = 2.5f;
 
@@ -90,6 +89,9 @@ public class EspMod : MelonMod
             postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatchCrablet)));
 
         BuildMenu();
+
+        if (FusionLoaded)
+            EspPlayer.EnsureHooks();
 
         MelonLogger.Msg($"{BuildInfo.Name} v{BuildInfo.Version} by {BuildInfo.Author} loaded.");
         MelonLogger.Msg(FusionLoaded
@@ -248,11 +250,6 @@ public class EspMod : MelonMod
             root.CreateBool("Show Dead", AccentDead, ShowDead, val =>
             {
                 ShowDead = val;
-                Prefs.MarkDirty();
-            });
-            root.CreateBool("Death Skull", AccentDead, ShowSkull, val =>
-            {
-                ShowSkull = val;
                 Prefs.MarkDirty();
             });
 

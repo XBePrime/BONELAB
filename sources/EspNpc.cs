@@ -16,8 +16,9 @@ public sealed class EspNpc
     public int Uuid;
     public bool Dying;
 
-    private float _displayHp = 1f;
-    private bool _seenRealHp;
+    /// <summary>HP the NPC had when first seen alive = 100% of the bar.</summary>
+    private float _fullHp;
+    private bool _hasFullHp;
 
     public AIBrain Brain => Proxy != null ? Proxy.aiManager : null;
 
@@ -40,7 +41,7 @@ public sealed class EspNpc
     }
 
     /// <summary>
-    /// HP as 0..1. On spawn cur_hp is often 0 — treat as full until we see real damage.
+    /// Remaining life fraction. Full bar = HP at spawn (not maxHitPoints=1000).
     /// </summary>
     public bool TryGetHp01(out float hp01)
     {
@@ -50,24 +51,26 @@ public sealed class EspNpc
             if (IsDead) { hp01 = 0f; return true; }
             if (Brain?.behaviour?.health == null) return false;
 
-            SubBehaviourHealth h = Brain.behaviour.health;
-            float max = h.maxHitPoints;
-            if (max < 1f) return false;
+            float cur = Brain.behaviour.health.cur_hp;
+            if (cur < 0f) cur = 0f;
 
-            float cur = h.cur_hp;
-            // Uninitialized / not ready
-            if (!_seenRealHp)
+            if (!_hasFullHp)
             {
-                if (cur > 0.5f)
-                    _seenRealHp = true;
-                else
+                if (cur <= 0.01f)
                 {
-                    hp01 = 1f; // spawn default = full
+                    // Not ready yet — show full
+                    hp01 = 1f;
                     return true;
                 }
+                _fullHp = cur;
+                _hasFullHp = true;
             }
 
-            hp01 = Mathf.Clamp01(cur / max);
+            if (cur > _fullHp)
+                _fullHp = cur;
+
+            if (_fullHp < 0.01f) { hp01 = 1f; return true; }
+            hp01 = Mathf.Clamp01(cur / _fullHp);
             return true;
         }
         catch { return false; }
@@ -85,11 +88,7 @@ public sealed class EspNpc
 
         float hp = 1f;
         bool hasHp = TryGetHp01(out hp);
-        if (dead) { hp = 0f; hasHp = true; }
-        if (!hasHp) hp = 1f;
-
-        // Snap display — no floaty lerp dance
-        _displayHp = hp;
+        if (dead) { hp = 0f; hasHp = false; }
 
         frame = new EspFrame
         {
@@ -99,11 +98,11 @@ public sealed class EspNpc
             Center = center,
             Width = width,
             Hp01 = hp,
-            DisplayHp = _displayHp,
-            HasHp = hasHp,
+            DisplayHp = hp,
+            HasHp = hasHp && !dead,
             Dead = dead,
             IsPlayer = false,
-            Color = dead ? EspMod.DeadColor : ResolveLiveColor(hp)
+            Color = dead ? EspMod.DeadColor : LiveColor()
         };
         return true;
     }
@@ -137,16 +136,14 @@ public sealed class EspNpc
         {
             float ySpan = Mathf.Abs(headP.y - feetP.y);
             float xz = Vector3.Distance(new Vector3(chestP.x, 0, chestP.z), new Vector3(feetP.x, 0, feetP.z));
-            float torso = Vector3.Distance(headP, chestP);
-            if (ySpan > 1.15f && xz < 0.4f && torso < 0.6f)
-                ignoreFeet = true; // feet stuck at ground / platform
+            if (ySpan > 1.15f && xz < 0.4f && Vector3.Distance(headP, chestP) < 0.6f)
+                ignoreFeet = true;
             if (Vector3.Distance(chestP, feetP) > 2.2f)
                 ignoreFeet = true;
         }
 
         if (!hasFeet || ignoreFeet)
         {
-            // Body-oriented length from head through chest
             Vector3 axis = chestP - headP;
             if (axis.sqrMagnitude < 0.0001f) axis = Vector3.down;
             else axis.Normalize();
@@ -158,22 +155,15 @@ public sealed class EspNpc
         head = headP + Vector3.up * 0.03f;
         chest = chestP;
         feet = feetP;
-        center = (head + feet) * 0.5f;
-        if (IsDead)
-            center = chestP; // skull / box focus on torso when dead
-
-        float h = Vector3.Distance(head, feet);
-        width = Mathf.Clamp(h * 0.28f, 0.28f, 0.48f);
-        return h > 0.12f;
+        center = IsDead ? chestP : (head + feet) * 0.5f;
+        width = Mathf.Clamp(Vector3.Distance(head, feet) * 0.28f, 0.28f, 0.48f);
+        return Vector3.Distance(head, feet) > 0.12f;
     }
 
-    private static Color ResolveLiveColor(float hp)
+    private static Color LiveColor()
     {
         if (EspMod.Rainbow)
-        {
-            float hue = (Time.unscaledTime * EspMod.RainbowSpeed) % 1f;
-            return Color.HSVToRGB(hue, 0.85f, 1f);
-        }
+            return Color.HSVToRGB((Time.unscaledTime * EspMod.RainbowSpeed) % 1f, 0.85f, 1f);
         return new Color(EspMod.ColorR, EspMod.ColorG, EspMod.ColorB, 1f);
     }
 
@@ -193,10 +183,12 @@ public sealed class EspNpc
             {
                 All[i].Proxy = proxy;
                 All[i].Dying = false;
+                All[i]._fullHp = 0f;
+                All[i]._hasFullHp = false;
                 return;
             }
         }
-        All.Add(new EspNpc { Proxy = proxy, Uuid = id, _displayHp = 1f, _seenRealHp = false });
+        All.Add(new EspNpc { Proxy = proxy, Uuid = id });
     }
 
     public static bool TryGetById(int id, out EspNpc npc)
