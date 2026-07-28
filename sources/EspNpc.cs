@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Il2CppSLZ.Marrow.AI;
+using Il2CppSLZ.Marrow.PuppetMasta;
 using UnityEngine;
 
 namespace BePrime.Esp;
 
-/// <summary>
-/// Plain C# NPC tracker — no RegisterTypeInIl2Cpp / MonoBehaviour (Quest-safe).
-/// </summary>
+/// <summary>Plain C# NPC tracker — full-body bounds + HP.</summary>
 public sealed class EspNpc
 {
     public static readonly List<EspNpc> All = new List<EspNpc>();
@@ -16,9 +15,7 @@ public sealed class EspNpc
     public int Uuid;
     public bool Dying;
 
-    private Bounds _bounds;
-    private float _nextBoundsAt;
-    private bool _hasBounds;
+    private float _displayHp = 1f;
 
     public AIBrain Brain => Proxy != null ? Proxy.aiManager : null;
 
@@ -36,29 +33,8 @@ public sealed class EspNpc
     {
         get
         {
-            try
-            {
-                return Proxy != null && Brain != null;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-    }
-
-    public Transform Root
-    {
-        get
-        {
-            try
-            {
-                return Proxy != null ? Proxy.transform.root : null;
-            }
-            catch
-            {
-                return null;
-            }
+            try { return Proxy != null && Brain != null; }
+            catch { return false; }
         }
     }
 
@@ -78,45 +54,106 @@ public sealed class EspNpc
         }
     }
 
-    public bool TryGetBounds(out Bounds bounds)
+    public Vector3 ChestPosition
     {
-        bounds = default;
-        if (!IsValid)
-            return false;
-        if (IsDead && !EspMod.ShowDead)
-            return false;
-
-        float now = Time.unscaledTime;
-        if (!_hasBounds || now >= _nextBoundsAt)
+        get
         {
-            _bounds = BuildBounds();
-            _hasBounds = true;
-            _nextBoundsAt = now + EspMod.BoundsRefreshSeconds;
+            try
+            {
+                if (Proxy != null && Proxy.chestTran != null)
+                    return Proxy.chestTran.position;
+            }
+            catch { /* ignore */ }
+            return HeadPosition - Vector3.up * 0.35f;
         }
-
-        bounds = _bounds;
-        return _bounds.size.sqrMagnitude > 0.0001f;
     }
 
-    private Bounds BuildBounds()
+    public Vector3 FeetPosition
     {
-        Vector3 head = HeadPosition;
-        Transform root = Root;
-        Vector3 feet = root != null ? root.position : head - Vector3.up * 1.7f;
+        get
+        {
+            try
+            {
+                if (Proxy != null && Proxy.feetTran != null)
+                    return Proxy.feetTran.position;
+                if (Proxy != null && Proxy.root != null)
+                    return Proxy.root.transform.position;
+                if (Proxy != null)
+                    return Proxy.transform.root.position;
+            }
+            catch { /* ignore */ }
+            return HeadPosition - Vector3.up * 1.7f;
+        }
+    }
 
-        Vector3 mid = head;
+    /// <summary>0..1 health ratio, or -1 if unknown.</summary>
+    public float GetHp01()
+    {
         try
         {
-            if (Proxy != null && Proxy.chestTran != null)
-                mid = Proxy.chestTran.position;
-        }
-        catch { /* ignore */ }
+            if (Brain == null)
+                return -1f;
+            BehaviourBaseNav behaviour = Brain.behaviour;
+            if (behaviour == null || behaviour.health == null)
+                return IsDead ? 0f : -1f;
 
-        float height = Mathf.Max(0.6f, (head.y - feet.y) + 0.18f);
-        float width = Mathf.Clamp(height * 0.32f, 0.28f, 0.55f);
-        float depth = width * 0.85f;
-        Vector3 center = new Vector3(mid.x, feet.y + height * 0.5f, mid.z);
-        return new Bounds(center, new Vector3(width, height, depth));
+            SubBehaviourHealth h = behaviour.health;
+            float max = h.maxHitPoints;
+            if (max <= 0.01f)
+                return IsDead ? 0f : -1f;
+            return Mathf.Clamp01(h.cur_hp / max);
+        }
+        catch
+        {
+            return IsDead ? 0f : -1f;
+        }
+    }
+
+    public bool TryBuildFrame(out EspFrame frame)
+    {
+        frame = default;
+        if (!IsValid)
+            return false;
+
+        bool dead = IsDead;
+        if (dead && !EspMod.ShowDead)
+            return false;
+
+        Vector3 head = HeadPosition;
+        Vector3 feet = FeetPosition;
+        Vector3 chest = ChestPosition;
+
+        // Full body: always include head / chest / feet (works when ragdolled)
+        float hp = dead ? 0f : GetHp01();
+        if (hp < 0f)
+            hp = dead ? 0f : 1f;
+
+        _displayHp = Mathf.MoveTowards(_displayHp, hp, Time.unscaledDeltaTime * EspMod.HpAnimSpeed);
+
+        frame = new EspFrame
+        {
+            Head = head + Vector3.up * 0.03f,
+            Feet = feet,
+            Chest = chest,
+            Hp01 = hp,
+            DisplayHp = _displayHp,
+            Dead = dead,
+            IsPlayer = false,
+            Color = ResolveColor(dead)
+        };
+        return true;
+    }
+
+    private static Color ResolveColor(bool dead)
+    {
+        if (dead)
+            return new Color(1f, 0.12f, 0.12f, 1f);
+        if (EspMod.Rainbow)
+        {
+            float h = (Time.unscaledTime * EspMod.RainbowSpeed) % 1f;
+            return Color.HSVToRGB(h, 0.85f, 1f);
+        }
+        return new Color(EspMod.ColorR, EspMod.ColorG, EspMod.ColorB, 1f);
     }
 
     public static void Clear() => All.Clear();
@@ -145,7 +182,6 @@ public sealed class EspNpc
             {
                 existing.Proxy = proxy;
                 existing.Dying = false;
-                existing._hasBounds = false;
                 return;
             }
         }
@@ -154,7 +190,8 @@ public sealed class EspNpc
         {
             Proxy = proxy,
             Uuid = id,
-            Dying = false
+            Dying = false,
+            _displayHp = 1f
         });
     }
 

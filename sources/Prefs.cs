@@ -20,7 +20,10 @@ public static class Prefs
     public static MelonPreferences_Entry<float> LineWidth;
     public static MelonPreferences_Entry<float> CornerSize;
     public static MelonPreferences_Entry<bool> ShowDead;
+    public static MelonPreferences_Entry<bool> ShowHp;
+    public static MelonPreferences_Entry<bool> ShowSkull;
     public static MelonPreferences_Entry<float> RainbowSpeed;
+    public static MelonPreferences_Entry<float> HpAnimSpeed;
 
     private static bool _dirty;
     private static float _flushAt = -1f;
@@ -43,7 +46,10 @@ public static class Prefs
         LineWidth = Category.CreateEntry("LineWidth", EspMod.LineWidth);
         CornerSize = Category.CreateEntry("CornerSize", EspMod.CornerSize);
         ShowDead = Category.CreateEntry("ShowDead", EspMod.ShowDead);
+        ShowHp = Category.CreateEntry("ShowHp", EspMod.ShowHp);
+        ShowSkull = Category.CreateEntry("ShowSkull", EspMod.ShowSkull);
         RainbowSpeed = Category.CreateEntry("RainbowSpeed", EspMod.RainbowSpeed);
+        HpAnimSpeed = Category.CreateEntry("HpAnimSpeed", EspMod.HpAnimSpeed);
 
         EspMod.Enabled = Enabled.Value;
         EspMod.Style = Mathf.Clamp(Style.Value, 0, 1);
@@ -58,7 +64,10 @@ public static class Prefs
         EspMod.LineWidth = Mathf.Clamp(LineWidth.Value, 0.002f, 0.05f);
         EspMod.CornerSize = Mathf.Clamp(CornerSize.Value, 0.1f, 0.5f);
         EspMod.ShowDead = ShowDead.Value;
+        EspMod.ShowHp = ShowHp.Value;
+        EspMod.ShowSkull = ShowSkull.Value;
         EspMod.RainbowSpeed = Mathf.Clamp(RainbowSpeed.Value, 0.05f, 2f);
+        EspMod.HpAnimSpeed = Mathf.Clamp(HpAnimSpeed.Value, 0.5f, 8f);
     }
 
     public static void MarkDirty()
@@ -95,7 +104,10 @@ public static class Prefs
             LineWidth.Value = EspMod.LineWidth;
             CornerSize.Value = EspMod.CornerSize;
             ShowDead.Value = EspMod.ShowDead;
+            ShowHp.Value = EspMod.ShowHp;
+            ShowSkull.Value = EspMod.ShowSkull;
             RainbowSpeed.Value = EspMod.RainbowSpeed;
+            HpAnimSpeed.Value = EspMod.HpAnimSpeed;
             MelonPreferences.Save();
         }
         catch { /* prefs must never crash */ }

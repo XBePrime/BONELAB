@@ -17,7 +17,7 @@ namespace BePrime.Esp;
 
 public class EspMod : MelonMod
 {
-    // 0 = Full Box, 1 = Corner frames
+    // 0 = Full 2D Box, 1 = Corner frames
     public static int Style = 1;
     public static bool Enabled = true;
     public static bool Rainbow;
@@ -29,10 +29,12 @@ public class EspMod : MelonMod
     public static bool ThroughWalls = true;
     public static float MaxDistance = 120f;
     public static float LineWidth = 0.008f;
-    public static float CornerSize = 0.22f;
-    public static bool ShowDead;
+    public static float CornerSize = 0.28f;
+    public static bool ShowDead = true;
+    public static bool ShowHp = true;
+    public static bool ShowSkull = true;
     public static float RainbowSpeed = 0.35f;
-    public const float BoundsRefreshSeconds = 0.08f;
+    public static float HpAnimSpeed = 2.5f;
 
     public static bool FusionLoaded { get; private set; }
     public static bool LevelReady { get; private set; }
@@ -40,13 +42,13 @@ public class EspMod : MelonMod
     private static readonly Color Accent = new Color(1f, 0.35f, 0.12f);
     private static readonly Color AccentAlt = new Color(0.2f, 0.85f, 0.75f);
     private static readonly Color AccentRain = new Color(0.95f, 0.4f, 0.9f);
+    private static readonly Color AccentDead = new Color(1f, 0.15f, 0.15f);
 
     private static float _nextPlayerSync = -1f;
     private static float _nextPrune = -1f;
 
     public override void OnInitializeMelon()
     {
-        // Same load pattern as Aimbot — no Camera / GL / render hooks here.
         FusionLoaded = AccessTools.TypeByName("LabFusion.Entities.NetworkPlayer") != null;
 
         Prefs.Create();
@@ -211,6 +213,22 @@ public class EspMod : MelonMod
                 Prefs.MarkDirty();
             });
 
+            root.CreateBool("Show HP", AccentAlt, ShowHp, val =>
+            {
+                ShowHp = val;
+                Prefs.MarkDirty();
+            });
+            root.CreateBool("Show Dead", AccentDead, ShowDead, val =>
+            {
+                ShowDead = val;
+                Prefs.MarkDirty();
+            });
+            root.CreateBool("Death Skull", AccentDead, ShowSkull, val =>
+            {
+                ShowSkull = val;
+                Prefs.MarkDirty();
+            });
+
             root.CreateBool("Through Walls", AccentAlt, ThroughWalls, val =>
             {
                 ThroughWalls = val;
@@ -239,9 +257,9 @@ public class EspMod : MelonMod
                 RainbowSpeed = Mathf.Clamp(val, 0.05f, 1.5f);
                 Prefs.MarkDirty();
             });
-            fancy.CreateBool("Show Dead", Color.white, ShowDead, val =>
+            fancy.CreateFloat("HP Anim Speed", Color.white, HpAnimSpeed, 0.25f, 0.5f, 8f, val =>
             {
-                ShowDead = val;
+                HpAnimSpeed = Mathf.Clamp(val, 0.5f, 8f);
                 Prefs.MarkDirty();
             });
 
