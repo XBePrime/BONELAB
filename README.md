@@ -1,86 +1,82 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/be-prime.png" alt="BE PRIME" width="100%" />
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/esp.png" alt="ESP" width="148" />
 
-# BE PRIME
+# ESP
 
-**Official BONELAB mods**
+**Premium box ESP for BONELAB**
+
+NPCs · LabFusion players · Box / Corner frames · Rainbow
 
 <br/>
 
+<img src="https://img.shields.io/badge/%20-v1.0.0-F97316?style=for-the-badge" height="40" />
+&nbsp;
+<img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
+&nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Telegram_%40be__primex-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" height="40" /></a>
+
+<br/><br/>
+
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/esp-v1.0.0"><img src="https://img.shields.io/badge/%20-Release_v1.0.0-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB"><img src="https://img.shields.io/badge/%20-GitHub_XBePrime-181717?style=for-the-badge&logo=github&logoColor=white" height="40" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.0/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="https://www.bonelab.fun"><img src="https://img.shields.io/badge/%20-bonelab.fun-B91C1C?style=for-the-badge" height="40" /></a>
+<a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
 
 </div>
 
-<br/>
+---
 
-## About
-
-**BE PRIME** ships MelonLoader mods for **BONELAB**.  
-This repo is the release hub — each mod has its own branch.
+## What it does
 
 | | |
 |---|---|
-| Owner | [XBePrime](https://github.com/XBePrime) |
-| Brand | BE PRIME |
-| Game | BONELAB |
-| Channel | [@be_primex](https://t.me/be_primex) |
+| **Full Box** | Clean 3D wireframe around targets |
+| **Corners** | Half-box corner frames (default) |
+| **Glow** | Soft outer pass + crisp inner lines |
+| **Rainbow** | Smooth HSV cycle |
+| **Color RGB** | Custom color when rainbow is off |
+| **NPCs / Players** | LabFusion players supported |
+| **Through walls** | Depth-ignore draw |
+| **Distance fade** | Soft fade at range |
 
-<br/>
+---
 
-## Mods
+## Menu
 
-<div align="center">
+```text
+BoneMenu → ESP
+```
 
-### Aimbot
-Precision aim assist — NPCs & LabFusion players
+| Option | Default |
+|--------|---------|
+| Enabled | On |
+| Style 0Box/1Corners | 1 (Corners) |
+| Rainbow | Off |
+| Color R / G / B | Orange accent |
+| Target NPCs | On |
+| Target Players | On |
+| Through Walls | On |
+| Max Distance | 120 |
+| Corner Size | 0.22 |
+| Rainbow Speed | 0.35 |
+| Show Dead | Off |
 
-<br/>
+---
 
-<a href="https://github.com/XBePrime/BONELAB/tree/Aimbot"><img src="https://img.shields.io/badge/%20-Open_Aimbot-E11D48?style=for-the-badge&logo=github&logoColor=white" height="44" /></a>
-&nbsp;
-<a href="https://github.com/XBePrime/BONELAB/raw/Aimbot/Aimbot.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
-&nbsp;
-<a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Telegram-0284C7?style=for-the-badge&logo=telegram&logoColor=white" height="44" /></a>
+## Install
 
-</div>
-
-<br/>
-
-<div align="center">
-
-### NERVE
-Bare-hand Quest tracking — every finger synced to the rig
-
-<br/>
-
-<a href="https://github.com/XBePrime/BONELAB/tree/Nerve"><img src="https://img.shields.io/badge/%20-Open_NERVE-F97316?style=for-the-badge&logo=github&logoColor=white" height="44" /></a>
-&nbsp;
-<a href="https://github.com/XBePrime/BONELAB/releases/download/nerve-v1.0.0/Nerve.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
-&nbsp;
-<a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Telegram-0284C7?style=for-the-badge&logo=telegram&logoColor=white" height="44" /></a>
-
-</div>
-
-<br/>
-
-
-## Community
+1. MelonLoader / LemonLoader  
+2. [BoneLib](https://thunderstore.io/c/bonelab/p/gnonme/BoneLib/)  
+3. [LabFusion](https://thunderstore.io/c/bonelab/p/Lakatrazz/LabFusion/) for players  
+4. `ESP.dll` → `Mods/`  
+5. **BoneMenu → ESP**
 
 <div align="center">
 
-<img src="https://gcdn.thunderstore.io/live/community/bonelab/bonelab-bg-1920x620.webp" alt="BONELAB" width="92%" />
+<br/>
 
-<br/><br/>
-
-<a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Join_%40be__primex-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
-
-<br/><br/>
-
-**© BE PRIME**
+**BE PRIME** · [@be_primex](https://t.me/be_primex)
 
 </div>
