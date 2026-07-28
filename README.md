@@ -58,13 +58,13 @@ Precision aim assist — NPCs & LabFusion players
 
 <br/>
 
-ESP — 2D boxes · HP · death skulls
+ESP — 2D boxes · HP · dead red
 
 <br/>
 
 <a href="https://github.com/XBePrime/BONELAB/tree/Esp"><img src="https://img.shields.io/badge/%20-Open_ESP-2563EB?style=for-the-badge&logo=github&logoColor=white" height="44" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.6/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.7/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Telegram-0284C7?style=for-the-badge&logo=telegram&logoColor=white" height="44" /></a>
 
