@@ -1,123 +1,123 @@
 using System;
 using System.Collections.Generic;
 using BoneLib;
-using Il2CppInterop.Runtime;
 using MelonLoader;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Object = UnityEngine.Object;
 
 namespace BePrime.Esp;
 
 /// <summary>
-/// World-space GL box / corner-box renderer.
-/// Hooks are deferred — Il2Cpp Camera statics are unsafe during Melon init.
+/// ESP boxes via LineRenderer pool. No Camera / GL / RenderPipeline hooks.
 /// </summary>
 public static class EspDraw
 {
+    private static Transform _root;
     private static Material _mat;
-    private static bool _hooked;
-    private static bool _loggedShader;
-    private static Camera.CameraCallback _postRenderCb;
-    private static Il2CppSystem.Action<ScriptableRenderContext, Camera> _endCameraAction;
-
-    // Scratch buffers — zero alloc in hot path
-    private static readonly Vector3[] _corners = new Vector3[8];
+    private static readonly List<LineRenderer> _pool = new List<LineRenderer>(128);
     private static readonly List<(Bounds bounds, Color color)> _frame = new List<(Bounds, Color)>(64);
+    private static readonly Vector3[] _c = new Vector3[8];
+    private static bool _loggedMat;
 
-    /// <summary>
-    /// Safe to call every frame; no-ops after first successful hook.
-    /// Must NOT run in OnInitializeMelon (Quest Il2Cpp crash).
-    /// </summary>
-    public static void EnsureHooked()
+    // Full box: 12 edges as pairs of corner indices
+    private static readonly int[] EdgeA = { 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3 };
+    private static readonly int[] EdgeB = { 1, 2, 3, 0, 5, 6, 7, 4, 4, 5, 6, 7 };
+
+    // Corner style: each of 8 corners fans to 3 neighbors
+    private static readonly int[] CornerSelf = { 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7 };
+    private static readonly int[] CornerTo   = { 1, 3, 4, 0, 2, 5, 1, 3, 6, 0, 2, 7, 5, 7, 0, 4, 6, 1, 5, 7, 2, 4, 6, 3 };
+
+    public static void Reset()
     {
-        if (_hooked)
-            return;
+        for (int i = 0; i < _pool.Count; i++)
+        {
+            if (_pool[i] != null)
+                Object.Destroy(_pool[i].gameObject);
+        }
+        _pool.Clear();
+        if (_root != null)
+            Object.Destroy(_root.gameObject);
+        _root = null;
+        _frame.Clear();
+    }
 
-        // Wait until Unity cameras exist — init-time static access crashes LemonLoader.
-        if (Camera.main == null && Camera.allCamerasCount <= 0)
-            return;
-
-        bool any = false;
-
+    public static void Tick()
+    {
         try
         {
-            // CameraCallback has implicit conversion from System.Action<Camera>
-            _postRenderCb = (Action<Camera>)OnPostRender;
-            Camera.CameraCallback current = Camera.onPostRender;
-            Camera.onPostRender = current == null
-                ? _postRenderCb
-                : (Camera.CameraCallback)Il2CppSystem.Delegate.Combine(current, _postRenderCb);
-            any = true;
-        }
-        catch (Exception ex)
-        {
-            MelonLogger.Warning($"ESP Camera.onPostRender hook: {ex.Message}");
-        }
-
-        try
-        {
-            _endCameraAction = DelegateSupport.ConvertDelegate<Il2CppSystem.Action<ScriptableRenderContext, Camera>>(
-                (Action<ScriptableRenderContext, Camera>)OnEndCameraRendering);
-            if (_endCameraAction != null)
+            Collect();
+            if (_frame.Count == 0)
             {
-                RenderPipelineManager.add_endCameraRendering(_endCameraAction);
-                any = true;
+                HideAll();
+                return;
+            }
+
+            EnsureRoot();
+            if (_root == null || !EnsureMaterial())
+                return;
+
+            ApplyZTest();
+
+            bool corners = EspMod.Style == 1;
+            int perBox = corners ? 24 : 12;
+            int need = _frame.Count * perBox;
+            EnsurePool(need);
+
+            float w = Mathf.Clamp(EspMod.LineWidth, 0.002f, 0.05f);
+            float ct = EspMod.CornerSize;
+            int li = 0;
+
+            for (int t = 0; t < _frame.Count; t++)
+            {
+                FillCorners(_frame[t].bounds);
+                Color col = _frame[t].color;
+
+                if (corners)
+                {
+                    for (int e = 0; e < 24; e++, li++)
+                        SetSeg(_pool[li], _c[CornerSelf[e]], Vector3.Lerp(_c[CornerSelf[e]], _c[CornerTo[e]], ct), col, w);
+                }
+                else
+                {
+                    for (int e = 0; e < 12; e++, li++)
+                        SetSeg(_pool[li], _c[EdgeA[e]], _c[EdgeB[e]], col, w);
+                }
+            }
+
+            for (; li < _pool.Count; li++)
+            {
+                if (_pool[li] != null)
+                    _pool[li].enabled = false;
             }
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"ESP endCameraRendering hook: {ex.Message}");
-        }
-
-        if (any)
-        {
-            _hooked = true;
-            MelonLogger.Msg("ESP draw hooks ready");
+            MelonLogger.Warning($"ESP draw: {ex.Message}");
         }
     }
 
-    public static void Unhook()
+    private static void SetSeg(LineRenderer lr, Vector3 a, Vector3 b, Color col, float w)
     {
-        if (!_hooked)
+        if (lr == null)
             return;
-        _hooked = false;
-
-        try
-        {
-            if (_postRenderCb != null)
-            {
-                Camera.CameraCallback current = Camera.onPostRender;
-                if (current != null)
-                    Camera.onPostRender = (Camera.CameraCallback)Il2CppSystem.Delegate.Remove(current, _postRenderCb);
-            }
-        }
-        catch { /* ignore */ }
-
-        try
-        {
-            if (_endCameraAction != null)
-                RenderPipelineManager.remove_endCameraRendering(_endCameraAction);
-        }
-        catch { /* ignore */ }
+        lr.positionCount = 2;
+        lr.SetPosition(0, a);
+        lr.SetPosition(1, b);
+        lr.startColor = col;
+        lr.endColor = col;
+        lr.startWidth = w;
+        lr.endWidth = w;
+        lr.enabled = true;
     }
 
-    private static void OnEndCameraRendering(ScriptableRenderContext ctx, Camera cam)
-    {
-        DrawForCamera(cam);
-    }
-
-    private static void OnPostRender(Camera cam)
-    {
-        DrawForCamera(cam);
-    }
-
-    public static void CollectFrame()
+    private static void Collect()
     {
         _frame.Clear();
         if (!EspMod.Enabled)
             return;
 
-        Vector3 eye = GetEyePosition();
+        Vector3 eye = GetEye();
         float maxSq = EspMod.MaxDistance * EspMod.MaxDistance;
         Color baseColor = ResolveColor();
 
@@ -130,7 +130,7 @@ public static class EspDraw
                 float dsq = (b.center - eye).sqrMagnitude;
                 if (dsq > maxSq)
                     continue;
-                _frame.Add((b, Fade(baseColor, dsq, maxSq)));
+                _frame.Add((b, Fade(baseColor, dsq)));
             }
         }
 
@@ -144,18 +144,15 @@ public static class EspDraw
                 float dsq = (b.center - eye).sqrMagnitude;
                 if (dsq > maxSq)
                     continue;
-                Color pc = baseColor;
-                pc.r = Mathf.Min(1f, pc.r * 1.05f + 0.05f);
-                _frame.Add((b, Fade(pc, dsq, maxSq)));
+                _frame.Add((b, Fade(baseColor, dsq)));
             }
         }
     }
 
-    private static Color Fade(Color c, float dsq, float maxSq)
+    private static Color Fade(Color c, float dsq)
     {
         float t = Mathf.Sqrt(dsq) / EspMod.MaxDistance;
-        float a = t < 0.55f ? 1f : Mathf.Lerp(1f, 0.15f, (t - 0.55f) / 0.45f);
-        c.a = a;
+        c.a = t < 0.55f ? 1f : Mathf.Lerp(1f, 0.2f, (t - 0.55f) / 0.45f);
         return c;
     }
 
@@ -166,11 +163,10 @@ public static class EspDraw
             float h = (Time.unscaledTime * EspMod.RainbowSpeed) % 1f;
             return Color.HSVToRGB(h, 0.85f, 1f);
         }
-
         return new Color(EspMod.ColorR, EspMod.ColorG, EspMod.ColorB, 1f);
     }
 
-    private static Vector3 GetEyePosition()
+    private static Vector3 GetEye()
     {
         try
         {
@@ -178,171 +174,96 @@ public static class EspDraw
                 return Player.Head.position;
         }
         catch { /* ignore */ }
-
-        Camera cam = Camera.main;
-        return cam != null ? cam.transform.position : Vector3.zero;
-    }
-
-    private static bool IsPlayerCamera(Camera cam)
-    {
-        if (cam == null || !cam.enabled || !cam.isActiveAndEnabled)
-            return false;
-
-        try
-        {
-            if (Player.Head != null)
-            {
-                Transform head = Player.Head;
-                if (cam.transform == head || cam.transform.IsChildOf(head) || head.IsChildOf(cam.transform))
-                    return true;
-            }
-        }
-        catch { /* ignore */ }
-
-        if (cam == Camera.main)
-            return true;
-        if (cam.stereoTargetEye != StereoTargetEyeMask.None)
-            return true;
-
-        return false;
-    }
-
-    private static void DrawForCamera(Camera cam)
-    {
-        if (!EspMod.Enabled || _frame.Count == 0)
-            return;
-        if (!IsPlayerCamera(cam))
-            return;
-
-        if (!EnsureMaterial())
-            return;
-
-        ApplyZTest();
-
-        GL.PushMatrix();
-        GL.LoadProjectionMatrix(GL.GetGPUProjectionMatrix(cam.projectionMatrix, true));
-        GL.modelview = cam.worldToCameraMatrix;
-
-        _mat.SetPass(0);
-
-        DrawFramePass(expand: 1.025f, alphaMul: 0.22f);
-        DrawFramePass(expand: 1f, alphaMul: 1f);
-
-        GL.PopMatrix();
-    }
-
-    private static void DrawFramePass(float expand, float alphaMul)
-    {
-        int style = EspMod.Style;
-        float corner = EspMod.CornerSize;
-
-        GL.Begin(GL.LINES);
-        for (int i = 0; i < _frame.Count; i++)
-        {
-            Bounds b = _frame[i].bounds;
-            if (expand != 1f)
-            {
-                Vector3 c = b.center;
-                Vector3 s = b.size * expand;
-                b = new Bounds(c, s);
-            }
-
-            Color col = _frame[i].color;
-            col.a *= alphaMul;
-            FillCorners(b);
-            GL.Color(col);
-
-            if (style == 0)
-                DrawFullBox();
-            else
-                DrawCornerBox(corner);
-        }
-        GL.End();
+        return Vector3.zero;
     }
 
     private static void FillCorners(Bounds b)
     {
         Vector3 e = b.extents;
         Vector3 c = b.center;
-        _corners[0] = c + new Vector3(-e.x, -e.y, -e.z);
-        _corners[1] = c + new Vector3(e.x, -e.y, -e.z);
-        _corners[2] = c + new Vector3(e.x, -e.y, e.z);
-        _corners[3] = c + new Vector3(-e.x, -e.y, e.z);
-        _corners[4] = c + new Vector3(-e.x, e.y, -e.z);
-        _corners[5] = c + new Vector3(e.x, e.y, -e.z);
-        _corners[6] = c + new Vector3(e.x, e.y, e.z);
-        _corners[7] = c + new Vector3(-e.x, e.y, e.z);
+        _c[0] = c + new Vector3(-e.x, -e.y, -e.z);
+        _c[1] = c + new Vector3(e.x, -e.y, -e.z);
+        _c[2] = c + new Vector3(e.x, -e.y, e.z);
+        _c[3] = c + new Vector3(-e.x, -e.y, e.z);
+        _c[4] = c + new Vector3(-e.x, e.y, -e.z);
+        _c[5] = c + new Vector3(e.x, e.y, -e.z);
+        _c[6] = c + new Vector3(e.x, e.y, e.z);
+        _c[7] = c + new Vector3(-e.x, e.y, e.z);
     }
 
-    private static void DrawFullBox()
+    private static void EnsureRoot()
     {
-        Seg(0, 1); Seg(1, 2); Seg(2, 3); Seg(3, 0);
-        Seg(4, 5); Seg(5, 6); Seg(6, 7); Seg(7, 4);
-        Seg(0, 4); Seg(1, 5); Seg(2, 6); Seg(3, 7);
+        if (_root != null)
+            return;
+        var go = new GameObject("BE_PRIME_ESP");
+        Object.DontDestroyOnLoad(go);
+        _root = go.transform;
     }
 
-    private static void DrawCornerBox(float t)
+    private static void EnsurePool(int need)
     {
-        Corner(0, 1, 3, 4, t);
-        Corner(1, 0, 2, 5, t);
-        Corner(2, 1, 3, 6, t);
-        Corner(3, 0, 2, 7, t);
-        Corner(4, 5, 7, 0, t);
-        Corner(5, 4, 6, 1, t);
-        Corner(6, 5, 7, 2, t);
-        Corner(7, 4, 6, 3, t);
+        while (_pool.Count < need)
+        {
+            var go = new GameObject("esp_line_" + _pool.Count);
+            go.transform.SetParent(_root, false);
+            var lr = go.AddComponent<LineRenderer>();
+            lr.sharedMaterial = _mat;
+            lr.useWorldSpace = true;
+            lr.shadowCastingMode = ShadowCastingMode.Off;
+            lr.receiveShadows = false;
+            lr.allowOcclusionWhenDynamic = false;
+            lr.numCapVertices = 0;
+            lr.numCornerVertices = 0;
+            lr.textureMode = LineTextureMode.Stretch;
+            lr.alignment = LineAlignment.View;
+            lr.enabled = false;
+            _pool.Add(lr);
+        }
     }
 
-    private static void Corner(int self, int a, int b, int c, float t)
+    private static void HideAll()
     {
-        Vector3 p = _corners[self];
-        LerpSeg(p, _corners[a], t);
-        LerpSeg(p, _corners[b], t);
-        LerpSeg(p, _corners[c], t);
-    }
-
-    private static void LerpSeg(Vector3 from, Vector3 to, float t)
-    {
-        GL.Vertex(from);
-        GL.Vertex(Vector3.Lerp(from, to, t));
-    }
-
-    private static void Seg(int a, int b)
-    {
-        GL.Vertex(_corners[a]);
-        GL.Vertex(_corners[b]);
+        for (int i = 0; i < _pool.Count; i++)
+        {
+            if (_pool[i] != null)
+                _pool[i].enabled = false;
+        }
     }
 
     private static bool EnsureMaterial()
     {
         if (_mat != null)
             return true;
-
         try
         {
-            Shader shader = Shader.Find("Hidden/Internal-Colored");
-            if (shader == null)
-                shader = Shader.Find("GUI/Text Shader");
-            if (shader == null)
-                shader = Shader.Find("Sprites/Default");
-
-            if (shader == null)
+            Shader sh = Shader.Find("Hidden/Internal-Colored");
+            if (sh == null)
+                sh = Shader.Find("Sprites/Default");
+            if (sh == null)
+                sh = Shader.Find("GUI/Text Shader");
+            if (sh == null)
             {
-                if (!_loggedShader)
+                if (!_loggedMat)
                 {
-                    _loggedShader = true;
-                    MelonLogger.Error("ESP: no suitable line shader found");
+                    _loggedMat = true;
+                    MelonLogger.Error("ESP: no line shader");
                 }
                 return false;
             }
 
-            _mat = new Material(shader);
+            _mat = new Material(sh);
             _mat.hideFlags = HideFlags.HideAndDontSave;
             _mat.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
             _mat.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
             _mat.SetInt("_Cull", (int)CullMode.Off);
             _mat.SetInt("_ZWrite", 0);
             ApplyZTest();
+
+            for (int i = 0; i < _pool.Count; i++)
+            {
+                if (_pool[i] != null)
+                    _pool[i].sharedMaterial = _mat;
+            }
             return true;
         }
         catch (Exception ex)

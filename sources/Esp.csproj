@@ -12,9 +12,9 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
 
-  <!-- Il2Cpp game DLLs from VPN lemonloader (BONELAB-libs), loader deps local. -->
+  <!-- Same refs root as working Aimbot -->
   <PropertyGroup>
-    <RefsRoot Condition="'$(RefsRoot)' == ''">/tmp/esp-refs</RefsRoot>
+    <RefsRoot Condition="'$(RefsRoot)' == ''">/tmp/sandbox/be-prime-refs</RefsRoot>
   </PropertyGroup>
 
   <ItemGroup>

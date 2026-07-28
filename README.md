@@ -10,7 +10,7 @@ NPCs · LabFusion players · Box / Corner frames · Rainbow
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.0.1-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.0.2-F97316?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,9 +18,9 @@ NPCs · LabFusion players · Box / Corner frames · Rainbow
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/esp-v1.0.1"><img src="https://img.shields.io/badge/%20-Release_v1.0.1-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/esp-v1.0.2"><img src="https://img.shields.io/badge/%20-Release_v1.0.2-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.1/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.2/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
 

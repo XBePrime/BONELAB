@@ -28,61 +28,59 @@ public class EspMod : MelonMod
     public static bool TargetPlayers = true;
     public static bool ThroughWalls = true;
     public static float MaxDistance = 120f;
-    public static float LineWidth = 0.01f;
+    public static float LineWidth = 0.008f;
     public static float CornerSize = 0.22f;
     public static bool ShowDead;
     public static float RainbowSpeed = 0.35f;
     public const float BoundsRefreshSeconds = 0.08f;
 
     public static bool FusionLoaded { get; private set; }
+    public static bool LevelReady { get; private set; }
 
     private static readonly Color Accent = new Color(1f, 0.35f, 0.12f);
     private static readonly Color AccentAlt = new Color(0.2f, 0.85f, 0.75f);
     private static readonly Color AccentRain = new Color(0.95f, 0.4f, 0.9f);
 
     private static float _nextPlayerSync = -1f;
+    private static float _nextPrune = -1f;
 
     public override void OnInitializeMelon()
     {
+        // Same load pattern as Aimbot — no Camera / GL / render hooks here.
         FusionLoaded = AccessTools.TypeByName("LabFusion.Entities.NetworkPlayer") != null;
 
         Prefs.Create();
-        // Do NOT hook Camera / RenderPipeline here — Il2Cpp statics crash LemonLoader at init.
 
         Hooking.OnLevelLoaded += _ =>
         {
-            EspNpc.All.Clear();
+            LevelReady = true;
+            EspNpc.Clear();
             EspPlayer.Clear();
-            EspDraw.EnsureHooked();
+            EspDraw.Reset();
         };
         Hooking.OnLevelUnloaded += () =>
         {
-            EspNpc.All.Clear();
+            LevelReady = false;
+            EspNpc.Clear();
             EspPlayer.Clear();
+            EspDraw.Reset();
         };
 
-        try
-        {
-            HarmonyInstance.Patch(
-                typeof(TriggerRefProxy).GetMethod("Start", AccessTools.all),
-                postfix: new HarmonyMethod(typeof(EspMod), nameof(AiPatch)));
+        HarmonyInstance.Patch(
+            typeof(TriggerRefProxy).GetMethod("Start", AccessTools.all),
+            postfix: new HarmonyMethod(typeof(EspMod), nameof(AiPatch)));
 
-            HarmonyInstance.Patch(
-                typeof(AIBrain).GetMethod("OnResurrection", AccessTools.all),
-                postfix: new HarmonyMethod(typeof(EspMod), nameof(AiResurrectionPatch)));
+        HarmonyInstance.Patch(
+            typeof(AIBrain).GetMethod("OnResurrection", AccessTools.all),
+            postfix: new HarmonyMethod(typeof(EspMod), nameof(AiResurrectionPatch)));
 
-            HarmonyInstance.Patch(
-                typeof(BehaviourBaseNav).GetMethod("KillStart", AccessTools.all),
-                postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatch)));
+        HarmonyInstance.Patch(
+            typeof(BehaviourBaseNav).GetMethod("KillStart", AccessTools.all),
+            postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatch)));
 
-            HarmonyInstance.Patch(
-                typeof(BehaviourCrablet).GetMethod("KillStart", AccessTools.all),
-                postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatchCrablet)));
-        }
-        catch (Exception ex)
-        {
-            MelonLogger.Error($"ESP Harmony patch failed: {ex}");
-        }
+        HarmonyInstance.Patch(
+            typeof(BehaviourCrablet).GetMethod("KillStart", AccessTools.all),
+            postfix: new HarmonyMethod(typeof(EspMod), nameof(KillStartPatchCrablet)));
 
         BuildMenu();
 
@@ -100,24 +98,35 @@ public class EspMod : MelonMod
 
     public override void OnLateUpdate()
     {
-        EspDraw.EnsureHooked();
-
-        if (!Enabled)
+        if (!LevelReady || !Enabled)
             return;
 
-        float now = Time.unscaledTime;
-        if (FusionLoaded && TargetPlayers && now >= _nextPlayerSync)
+        try
         {
-            _nextPlayerSync = now + 0.5f;
-            EspPlayer.SyncFromFusion();
-        }
+            float now = Time.unscaledTime;
+            if (FusionLoaded && TargetPlayers && now >= _nextPlayerSync)
+            {
+                _nextPlayerSync = now + 0.5f;
+                EspPlayer.SyncFromFusion();
+            }
 
-        EspDraw.CollectFrame();
+            if (now >= _nextPrune)
+            {
+                _nextPrune = now + 1f;
+                EspNpc.Prune();
+            }
+
+            EspDraw.Tick();
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Warning($"ESP tick: {ex.Message}");
+        }
     }
 
     public override void OnDeinitializeMelon()
     {
-        EspDraw.Unhook();
+        EspDraw.Reset();
         Prefs.FlushNow();
     }
 
@@ -163,7 +172,6 @@ public class EspMod : MelonMod
                 Prefs.MarkDirty();
             });
 
-            // 0 = Box, 1 = Corners (half-box frames)
             root.CreateInt("Style 0Box/1Corners", Accent, Style, 1, 0, 1, val =>
             {
                 Style = Mathf.Clamp(val, 0, 1);
@@ -219,6 +227,11 @@ public class EspMod : MelonMod
             fancy.CreateFloat("Corner Size", Color.white, CornerSize, 0.02f, 0.1f, 0.45f, val =>
             {
                 CornerSize = Mathf.Clamp(val, 0.1f, 0.45f);
+                Prefs.MarkDirty();
+            });
+            fancy.CreateFloat("Line Width", Color.white, LineWidth, 0.001f, 0.002f, 0.04f, val =>
+            {
+                LineWidth = Mathf.Clamp(val, 0.002f, 0.04f);
                 Prefs.MarkDirty();
             });
             fancy.CreateFloat("Rainbow Speed", Color.white, RainbowSpeed, 0.05f, 0.05f, 1.5f, val =>
