@@ -61,3 +61,10 @@ BoneMenu → ESP
 **BE PRIME** · [@be_primex](https://t.me/be_primex)
 
 </div>
+
+---
+
+### v1.0.7
+- No skull
+- Dead players → red (Fusion DYING/DEATH)
+- NPC HP from spawn HP
