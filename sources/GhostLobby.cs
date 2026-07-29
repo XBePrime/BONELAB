@@ -49,8 +49,7 @@ public static class GhostLobby
         string err = EnsureHostOrError();
         if (err != null)
         {
-            MelonLogger.Warning($"Ghost Lobby: {err}");
-            GhostHolo.ShowToast(err);
+            GhostHolo.Notify("ACCESS DENIED", err);
             return;
         }
 
@@ -70,8 +69,7 @@ public static class GhostLobby
         string err = EnsureHostOrError();
         if (err != null)
         {
-            MelonLogger.Warning($"Ghost Lobby: {err}");
-            GhostHolo.ShowToast(err);
+            GhostHolo.Notify("ACCESS DENIED", err);
             return;
         }
         Fakes.Clear();
