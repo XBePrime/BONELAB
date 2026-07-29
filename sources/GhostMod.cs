@@ -92,6 +92,7 @@ public class GhostMod : MelonMod
                 MelonLogger.Warning("Ghost needs LabFusion.");
                 return;
             }
+            GhostHolo.Destroy();
             GhostIdentity.CaptureRealIfNeeded();
             MelonLogger.Msg("Ghost ENABLED — wrist hologram online.");
         }
