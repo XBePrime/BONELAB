@@ -11,17 +11,17 @@ using Object = UnityEngine.Object;
 namespace BePrime.Ghost;
 
 /// <summary>
-/// Yellow cyberpunk hologram on the LEFT WRIST (side), not in the palm/fingers.
-/// Poke with right index fingertip. Short one-shot anims only.
+/// Yellow cyberpunk hologram on the LEFT FOREARM (inner / vein face).
+/// Poke with right index fingertip — index curl is locked near the panel.
 /// </summary>
 public static class GhostHolo
 {
     private enum Tab { Nick, Lobby, Custom }
 
-    // World size target: ~6.5cm x ~13cm (tall strip along wrist)
-    private const float CanvasW = 160f;
-    private const float CanvasH = 320f;
-    private const float WorldScale = 0.00040f; // 160→6.4cm, 320→12.8cm
+    // Horizontal strip on inner forearm (~12cm x ~5cm)
+    private const float CanvasW = 300f;
+    private const float CanvasH = 130f;
+    private const float WorldScale = 0.00040f;
 
     private static GameObject _root;
     private static RectTransform _canvasRt;
@@ -44,9 +44,15 @@ public static class GhostHolo
     private static int _hoverIndex = -1;
     private static int _insideIndex = -1;
     private static float _clickLockUntil;
-    private const float ClickCooldown = 0.38f;
-    private const float TouchEnter = 0.032f;
-    private const float TouchExit = 0.042f;
+    private static float _prevBestPlane = 99f;
+    private const float ClickCooldown = 0.42f;
+    // Precise poke: inside button pad + close to surface + approaching
+    private const float PlaneMax = 0.018f;
+    private const float PlaneEnter = 0.013f;
+    private const float EdgePad = 0.10f;
+    // Keep index straight when tip is near the whole panel
+    private const float CurlLockPlane = 0.055f;
+    private const float CurlLockPad = 0.22f;
 
     private static float _toastT = 1f;
     private static float _toastHoldUntil;
@@ -102,11 +108,12 @@ public static class GhostHolo
         }
 
         float dt = Time.unscaledDeltaTime;
-        AttachToLeftWrist();
+        AttachToLeftForearm();
         AnimateAppear(dt);
         AnimateButtons(dt);
         AnimateToast(dt);
         HandleTouch();
+        GhostIndexLock.TickStraighten();
     }
 
     public static void Notify(string title, string body)
@@ -139,6 +146,7 @@ public static class GhostHolo
             _headerSub = null;
         }
         _appearT = 1f;
+        GhostIndexLock.Active = false;
     }
 
     private static void Ensure()
@@ -182,7 +190,7 @@ public static class GhostHolo
             title.rectTransform.offsetMin = new Vector2(8f, 0f);
             title.rectTransform.offsetMax = new Vector2(-6f, -2f);
 
-            _headerSub = MakeText(top, "Sub", "WRIST LINK", 10, YellowDeep, TextAnchor.MiddleLeft);
+            _headerSub = MakeText(top, "Sub", "FOREARM LINK", 10, YellowDeep, TextAnchor.MiddleLeft);
             SetAnchors(_headerSub.rectTransform, 0f, 0f, 1f, 0.48f);
             _headerSub.rectTransform.offsetMin = new Vector2(8f, 2f);
             _headerSub.rectTransform.offsetMax = new Vector2(-6f, 0f);
@@ -268,40 +276,60 @@ public static class GhostHolo
     }
 
     /// <summary>
-    /// Sit on the LEFT WRIST, outer/side face — away from palm & fingers.
+    /// Sit on the LEFT FOREARM inner face (vein side), below biceps / above glove.
+    /// Landscape strip runs along the arm.
     /// </summary>
-    private static void AttachToLeftWrist()
+    private static void AttachToLeftForearm()
     {
         try
         {
+            if (_root == null) return;
+
+            RigManager rm = Player.RigManager;
+            ArtRig art = rm?.physicsRig?.artOutput;
+            Transform lower = art?.artLowerArmLf;
+            Transform wrist = art?.artWristLf;
             Hand hand = Player.LeftHand;
-            if (hand == null || _root == null) return;
 
-            Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
+            if (lower == null || wrist == null)
+            {
+                // Fallback: palm → wrist direction if ArtRig missing
+                if (hand == null) return;
+                Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
+                Vector3 fallPos = palm.TransformPoint(new Vector3(0f, 0.01f, -0.12f));
+                Quaternion fallRot = Quaternion.LookRotation(palm.up, -palm.forward) * Quaternion.Euler(0f, 180f, 90f);
+                _root.transform.SetPositionAndRotation(fallPos, fallRot);
+                return;
+            }
 
-            // Palm local: +Z ~ fingers, -Z ~ wrist, ±X ~ side of hand.
-            // Pull back to wrist, shift to the outer side of the left hand.
-            Vector3 local =
-                new Vector3(-0.055f, 0.01f, -0.075f); // side + toward wrist
-            Vector3 pos = palm.TransformPoint(local);
+            Vector3 alongArm = wrist.position - lower.position;
+            if (alongArm.sqrMagnitude < 1e-8f) return;
+            alongArm.Normalize();
 
-            // Face the panel outward from the wrist side so you can read it
-            // when looking at your left wrist from the outside.
-            Vector3 awayFromPalm = -palm.up;          // out of palm
-            Vector3 alongWrist = -palm.forward;       // toward forearm
-            if (awayFromPalm.sqrMagnitude < 0.001f) awayFromPalm = palm.right;
-            Vector3 face = Vector3.Cross(alongWrist, palm.right);
-            if (face.sqrMagnitude < 0.001f) face = awayFromPalm;
-            face.Normalize();
+            // Mid-forearm, slightly toward wrist — vein zone, not on the glove
+            Vector3 posMid = Vector3.Lerp(lower.position, wrist.position, 0.58f);
 
-            // Panel faces the user looking at the outer wrist
-            Quaternion rot = Quaternion.LookRotation(face, alongWrist);
-            // Flip so text isn't mirrored for left-wrist viewing
+            // Inner face ≈ palm-out direction (vein faces up when palm faces up)
+            Vector3 face;
+            if (hand?.palmPositionTransform != null)
+                face = hand.palmPositionTransform.up;
+            else
+            {
+                face = Vector3.Cross(alongArm, Vector3.up);
+                if (face.sqrMagnitude < 1e-6f) face = Vector3.Cross(alongArm, Vector3.forward);
+                face.Normalize();
+            }
+
+            // Lift off the skin a bit so it reads as a holo, not buried in mesh
+            posMid += face * 0.022f;
+
+            // Landscape: long axis along forearm (canvas 300×130 + Z90)
+            Quaternion rot = Quaternion.LookRotation(face, alongArm);
             rot *= Quaternion.Euler(0f, 180f, 90f);
 
-            _root.transform.SetPositionAndRotation(pos, rot);
+            _root.transform.SetPositionAndRotation(posMid, rot);
         }
-        catch { /* hand missing */ }
+        catch { /* rig missing */ }
     }
 
     private static void AnimateAppear(float dt)
@@ -374,32 +402,94 @@ public static class GhostHolo
 
     private static void HandleTouch()
     {
+        if (!TryGetRightIndexTip(out Vector3 tip))
+        {
+            GhostIndexLock.Active = false;
+            _prevBestPlane = 99f;
+            return;
+        }
+
+        // Straighten index while tip is near the holo (whole panel, not only buttons)
+        GhostIndexLock.Active = IsNearPanel(tip);
+
         if (_buttons.Count == 0) return;
-        if (!TryGetRightIndexTip(out Vector3 tip)) return;
 
         int best = -1;
-        float bestDist = float.MaxValue;
+        float bestAbs = float.MaxValue;
         for (int i = 0; i < _buttons.Count; i++)
         {
             HoloBtn b = _buttons[i];
             if (b?.Rt == null) continue;
-            float dist = DistanceToButton(tip, b.Rt);
-            float thresh = (i == _insideIndex) ? TouchExit : TouchEnter;
-            if (dist < thresh && dist < bestDist)
+            if (!TryHitRect(tip, b.Rt, EdgePad, out float plane, out bool inside))
+                continue;
+            if (!inside) continue;
+            float a = Mathf.Abs(plane);
+            if (a > PlaneMax) continue;
+            if (a < bestAbs)
             {
-                bestDist = dist;
+                bestAbs = a;
                 best = i;
             }
         }
 
         _hoverIndex = best;
-        if (best != _insideIndex)
+
+        // Fire on approach through the surface while inside the button pad
+        bool poke = best >= 0 && bestAbs <= PlaneEnter && _prevBestPlane > PlaneEnter;
+        _prevBestPlane = best >= 0 ? bestAbs : 99f;
+
+        if (poke && Time.unscaledTime >= _clickLockUntil)
         {
-            int prev = _insideIndex;
             _insideIndex = best;
-            if (best >= 0 && prev != best && Time.unscaledTime >= _clickLockUntil)
-                FireButton(best);
+            FireButton(best);
         }
+        else if (best < 0)
+        {
+            _insideIndex = -1;
+        }
+    }
+
+    private static bool IsNearPanel(Vector3 tip)
+    {
+        if (_canvasRt == null) return false;
+        if (!TryHitRect(tip, _canvasRt, CurlLockPad, out float plane, out bool inside))
+            return false;
+        return inside && Mathf.Abs(plane) <= CurlLockPlane;
+    }
+
+    private static bool TryHitRect(Vector3 tip, RectTransform rt, float edgePad, out float planeDist, out bool inside)
+    {
+        planeDist = 99f;
+        inside = false;
+        if (rt == null) return false;
+
+        Vector3[] corners = new Vector3[4];
+        rt.GetWorldCorners(corners);
+        Vector3 bl = corners[0], tl = corners[1], tr = corners[2];
+        Vector3 right = tr - tl;
+        Vector3 up = tl - bl;
+        Vector3 normal = Vector3.Cross(right, up);
+        if (normal.sqrMagnitude < 1e-10f) return false;
+        normal.Normalize();
+
+        Vector3 center = (bl + tr) * 0.5f;
+        planeDist = Vector3.Dot(tip - center, normal);
+
+        float w = right.magnitude;
+        float h = up.magnitude;
+        if (w < 1e-5f || h < 1e-5f) return false;
+
+        Vector3 rN = right / w;
+        Vector3 uN = up / h;
+        Vector3 projected = tip - normal * planeDist;
+        Vector3 local = projected - bl;
+        float u = Vector3.Dot(local, rN);
+        float v = Vector3.Dot(local, uN);
+
+        float padW = w * edgePad;
+        float padH = h * edgePad;
+        inside = u >= -padW && u <= w + padW && v >= -padH && v <= h + padH;
+        return true;
     }
 
     private static void FireButton(int index)
@@ -411,35 +501,6 @@ public static class GhostHolo
         b.PressAnim = 1f;
         try { b.OnClick?.Invoke(); }
         catch (Exception ex) { MelonLogger.Warning($"Ghost btn: {ex.Message}"); }
-    }
-
-    private static float DistanceToButton(Vector3 tip, RectTransform rt)
-    {
-        Vector3[] corners = new Vector3[4];
-        rt.GetWorldCorners(corners);
-        Vector3 bl = corners[0], tl = corners[1], tr = corners[2];
-        Vector3 right = tr - tl;
-        Vector3 up = tl - bl;
-        Vector3 normal = Vector3.Cross(right, up);
-        if (normal.sqrMagnitude < 1e-8f)
-            return Vector3.Distance(tip, rt.position);
-        normal.Normalize();
-
-        Vector3 center = (bl + tr) * 0.5f;
-        float planeDist = Vector3.Dot(tip - center, normal);
-        Vector3 projected = tip - normal * planeDist;
-
-        float w = right.magnitude;
-        float h = up.magnitude;
-        if (w < 1e-5f || h < 1e-5f) return Mathf.Abs(planeDist);
-
-        Vector3 rN = right / w;
-        Vector3 uN = up / h;
-        Vector3 local = projected - bl;
-        float u = Mathf.Clamp(Vector3.Dot(local, rN), 0f, w);
-        float v = Mathf.Clamp(Vector3.Dot(local, uN), 0f, h);
-        Vector3 closest = bl + rN * u + uN * v;
-        return Vector3.Distance(tip, closest);
     }
 
     private static bool TryGetRightIndexTip(out Vector3 tip)
@@ -497,7 +558,7 @@ public static class GhostHolo
 
         if (_body != null) _body.text = BodyText(tab);
         if (_headerSub != null)
-            _headerSub.text = tab == Tab.Lobby && !GhostLobby.IsHost ? "HOST ONLY" : "WRIST LINK";
+            _headerSub.text = tab == Tab.Lobby && !GhostLobby.IsHost ? "HOST ONLY" : "FOREARM LINK";
 
         _insideIndex = -1;
         _hoverIndex = -1;
