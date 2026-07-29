@@ -12,16 +12,16 @@ namespace BePrime.Ghost;
 
 /// <summary>
 /// Yellow cyberpunk hologram on the LEFT FOREARM (inner / vein face).
-/// Poke with right index fingertip — index curl is locked near the panel.
+/// Poke with right index fingertip.
 /// </summary>
 public static class GhostHolo
 {
     private enum Tab { Nick, Lobby, Custom }
 
-    // Horizontal strip on inner forearm (~12cm x ~5cm)
-    private const float CanvasW = 300f;
-    private const float CanvasH = 130f;
-    private const float WorldScale = 0.00040f;
+    // Wide horizontal strip floating above inner forearm (~18cm x ~5cm)
+    private const float CanvasW = 440f;
+    private const float CanvasH = 120f;
+    private const float WorldScale = 0.00042f;
 
     private static GameObject _root;
     private static RectTransform _canvasRt;
@@ -50,9 +50,6 @@ public static class GhostHolo
     private const float PlaneMax = 0.018f;
     private const float PlaneEnter = 0.013f;
     private const float EdgePad = 0.10f;
-    // Keep index straight when tip is near the whole panel
-    private const float CurlLockPlane = 0.055f;
-    private const float CurlLockPad = 0.22f;
 
     private static float _toastT = 1f;
     private static float _toastHoldUntil;
@@ -113,7 +110,6 @@ public static class GhostHolo
         AnimateButtons(dt);
         AnimateToast(dt);
         HandleTouch();
-        GhostIndexLock.TickStraighten();
     }
 
     public static void Notify(string title, string body)
@@ -146,7 +142,6 @@ public static class GhostHolo
             _headerSub = null;
         }
         _appearT = 1f;
-        GhostIndexLock.Active = false;
     }
 
     private static void Ensure()
@@ -276,8 +271,7 @@ public static class GhostHolo
     }
 
     /// <summary>
-    /// Sit on the LEFT FOREARM inner face (vein side), below biceps / above glove.
-    /// Landscape strip runs along the arm.
+    /// Float above LEFT FOREARM inner face — pulled out of the mesh, long side horizontal across the arm.
     /// </summary>
     private static void AttachToLeftForearm()
     {
@@ -293,11 +287,12 @@ public static class GhostHolo
 
             if (lower == null || wrist == null)
             {
-                // Fallback: palm → wrist direction if ArtRig missing
                 if (hand == null) return;
                 Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
-                Vector3 fallPos = palm.TransformPoint(new Vector3(0f, 0.01f, -0.12f));
-                Quaternion fallRot = Quaternion.LookRotation(palm.up, -palm.forward) * Quaternion.Euler(0f, 180f, 90f);
+                // Out of palm, toward forearm — not buried in the hand
+                Vector3 fallPos = palm.TransformPoint(new Vector3(0f, 0.055f, -0.14f));
+                // Horizontal: canvas up toward elbow, long axis across the arm
+                Quaternion fallRot = Quaternion.LookRotation(palm.up, -palm.forward) * Quaternion.Euler(0f, 180f, 0f);
                 _root.transform.SetPositionAndRotation(fallPos, fallRot);
                 return;
             }
@@ -306,10 +301,10 @@ public static class GhostHolo
             if (alongArm.sqrMagnitude < 1e-8f) return;
             alongArm.Normalize();
 
-            // Mid-forearm, slightly toward wrist — vein zone, not on the glove
-            Vector3 posMid = Vector3.Lerp(lower.position, wrist.position, 0.58f);
+            // Mid-forearm — away from the glove / hand
+            Vector3 posMid = Vector3.Lerp(lower.position, wrist.position, 0.42f);
 
-            // Inner face ≈ palm-out direction (vein faces up when palm faces up)
+            // Inner face (vein) ≈ palm-out
             Vector3 face;
             if (hand?.palmPositionTransform != null)
                 face = hand.palmPositionTransform.up;
@@ -320,12 +315,14 @@ public static class GhostHolo
                 face.Normalize();
             }
 
-            // Lift off the skin a bit so it reads as a holo, not buried in mesh
-            posMid += face * 0.022f;
+            // Pull clearly OUT of the arm mesh (holo float)
+            posMid += face * 0.065f;
 
-            // Landscape: long axis along forearm (canvas 300×130 + Z90)
-            Quaternion rot = Quaternion.LookRotation(face, alongArm);
-            rot *= Quaternion.Euler(0f, 180f, 90f);
+            // Horizontal strip: long axis across the forearm (left↔right when looking at it),
+            // short axis along elbow→wrist. No Z90 — that made it look vertical.
+            // up = toward elbow so header sits "up" the arm
+            Quaternion rot = Quaternion.LookRotation(face, -alongArm);
+            rot *= Quaternion.Euler(0f, 180f, 0f);
 
             _root.transform.SetPositionAndRotation(posMid, rot);
         }
@@ -404,13 +401,9 @@ public static class GhostHolo
     {
         if (!TryGetRightIndexTip(out Vector3 tip))
         {
-            GhostIndexLock.Active = false;
             _prevBestPlane = 99f;
             return;
         }
-
-        // Straighten index while tip is near the holo (whole panel, not only buttons)
-        GhostIndexLock.Active = IsNearPanel(tip);
 
         if (_buttons.Count == 0) return;
 
@@ -447,14 +440,6 @@ public static class GhostHolo
         {
             _insideIndex = -1;
         }
-    }
-
-    private static bool IsNearPanel(Vector3 tip)
-    {
-        if (_canvasRt == null) return false;
-        if (!TryHitRect(tip, _canvasRt, CurlLockPad, out float plane, out bool inside))
-            return false;
-        return inside && Mathf.Abs(plane) <= CurlLockPlane;
     }
 
     private static bool TryHitRect(Vector3 tip, RectTransform rt, float edgePad, out float planeDist, out bool inside)

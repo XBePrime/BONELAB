@@ -26,10 +26,7 @@ public class GhostMod : MelonMod
         Prefs.Create();
 
         if (FusionLoaded)
-        {
             GhostLobby.Install(HarmonyInstance);
-            GhostIndexLock.Install(HarmonyInstance);
-        }
 
         Hooking.OnLevelLoaded += _ =>
         {

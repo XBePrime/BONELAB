@@ -46,8 +46,7 @@ Invisible nick · Clone players · Lobby fakes · Forearm hologram
 BoneMenu → Ghost → Enabled
 ```
 
-Point **right index fingertip** at a button to poke it (index stays straight near the panel).
-
+Point **right index fingertip** at a button to poke it.
 ---
 
 ## Install
