@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/esp.png" alt="ESP" width="148" />
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/ghost.png" alt="Ghost" width="148" />
 
-# ESP
+# Ghost
 
-**ESP for BONELAB**
+**Identity spoof for BONELAB**
 
-2D boxes · HP bars · NPCs · LabFusion players
+Invisible nick · Clone players · Lobby fakes · Wrist hologram
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.0.1-F97316?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.0.0-FF6A00?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,9 +18,9 @@
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/esp-v1.0.1"><img src="https://img.shields.io/badge/%20-Release_v1.0.1-F97316?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/ghost-v1.0.0"><img src="https://img.shields.io/badge/%20-Release_v1.0.0-FF6A00?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB/releases/download/esp-v1.0.1/ESP.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/ghost-v1.0.0/Ghost.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
 
@@ -32,20 +32,21 @@
 
 | | |
 |---|---|
-| **2D Box / Corners** | Camera-facing frames |
-| **HP bar** | Green / yellow / red bands |
-| **Death** | Red box (players + NPCs) |
-| **NPCs** | HP from spawn HP, not maxHitPoints |
-| **Players** | Fusion DYING/DEATH → red |
-| **Rainbow / Color** | Custom RGB or HSV cycle |
+| **BoneMenu → Ghost** | One orange Enabled toggle |
+| **Wrist hologram** | Cyberpunk panel on left hand |
+| **Nick** | Invisible · presets · clone session players |
+| **Lobby** | Host-only fake players in lobby metadata |
+| **Custom** | Numeric keypad → mod.io avatar id |
 
 ---
 
 ## Menu
 
 ```text
-BoneMenu → ESP
+BoneMenu → Ghost → Enabled
 ```
+
+Point right hand at a hologram button · press **A** to click.
 
 ---
 
@@ -53,8 +54,8 @@ BoneMenu → ESP
 
 1. MelonLoader / LemonLoader  
 2. BoneLib  
-3. LabFusion (players)  
-4. `ESP.dll` → `Mods/`  
+3. LabFusion  
+4. `Ghost.dll` → `Mods/`  
 
 <div align="center">
 

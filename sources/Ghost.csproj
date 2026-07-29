@@ -4,15 +4,14 @@
     <TargetFramework>net6.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <AssemblyName>ESP</AssemblyName>
-    <RootNamespace>BePrime.Esp</RootNamespace>
+    <AssemblyName>Ghost</AssemblyName>
+    <RootNamespace>BePrime.Ghost</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
 
-  <!-- Same refs root as working Aimbot -->
   <PropertyGroup>
     <RefsRoot Condition="'$(RefsRoot)' == ''">/tmp/sandbox/be-prime-refs</RefsRoot>
   </PropertyGroup>
@@ -27,6 +26,10 @@
     <Reference Include="Il2Cppmscorlib"><HintPath>$(RefsRoot)/Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(RefsRoot)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(RefsRoot)/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(RefsRoot)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(RefsRoot)/UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(RefsRoot)/UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(RefsRoot)/UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Il2CppSLZ.Marrow"><HintPath>$(RefsRoot)/Il2CppSLZ.Marrow.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Assembly-CSharp"><HintPath>$(RefsRoot)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="LabFusion"><HintPath>$(RefsRoot)/LabFusion.dll</HintPath><Private>false</Private></Reference>
