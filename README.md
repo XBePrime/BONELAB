@@ -10,7 +10,7 @@ Invisible nick · Clone players · Lobby fakes · Forearm hologram
 
 <br/>
 
-<img src="https://img.shields.io/badge/%20-v1.0.3-FF6A00?style=for-the-badge" height="40" />
+<img src="https://img.shields.io/badge/%20-v1.0.4-FF6A00?style=for-the-badge" height="40" />
 &nbsp;
 <img src="https://img.shields.io/badge/%20-Author_BE%20PRIME-111827?style=for-the-badge" height="40" />
 &nbsp;
@@ -18,9 +18,9 @@ Invisible nick · Clone players · Lobby fakes · Forearm hologram
 
 <br/><br/>
 
-<a href="https://github.com/XBePrime/BONELAB/releases/tag/ghost-v1.0.3"><img src="https://img.shields.io/badge/%20-Release_v1.0.3-FF6A00?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/tag/ghost-v1.0.4"><img src="https://img.shields.io/badge/%20-Release_v1.0.4-FF6A00?style=for-the-badge&logo=github&logoColor=white" height="48" /></a>
 &nbsp;
-<a href="https://github.com/XBePrime/BONELAB/releases/download/ghost-v1.0.3/Ghost.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
+<a href="https://github.com/XBePrime/BONELAB/releases/download/ghost-v1.0.4/Ghost.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="48" /></a>
 &nbsp;
 <a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Support-FF0033?style=for-the-badge&logo=telegram&logoColor=white" height="48" /></a>
 
@@ -33,7 +33,7 @@ Invisible nick · Clone players · Lobby fakes · Forearm hologram
 | | |
 |---|---|
 | **BoneMenu → Ghost** | One orange Enabled toggle |
-| **Forearm hologram** | Horizontal panel on left inner forearm |
+| **Forearm hologram** | Wide horizontal panel floating on left forearm |
 | **Nick** | Invisible · presets · clone session players |
 | **Lobby** | Host-only fake players in lobby metadata |
 | **Custom** | Numeric keypad → mod.io avatar id |
@@ -47,6 +47,7 @@ BoneMenu → Ghost → Enabled
 ```
 
 Point **right index fingertip** at a button to poke it.
+
 ---
 
 ## Install
