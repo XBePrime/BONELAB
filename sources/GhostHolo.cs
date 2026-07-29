@@ -373,11 +373,11 @@ public static class GhostHolo
             {
                 if (hand == null) return;
                 Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
-                Vector3 pos = palm.TransformPoint(new Vector3(0f, 0.05f, -0.12f));
+                Vector3 fallPos = palm.TransformPoint(new Vector3(0f, 0.05f, -0.12f));
                 // Face player: UI front is -forward → point forward into the palm
-                Quaternion rot = Quaternion.LookRotation(-palm.up, -palm.forward);
-                rot *= Quaternion.Euler(0f, 0f, -90f);
-                _root.transform.SetPositionAndRotation(pos, rot);
+                Quaternion fallRot = Quaternion.LookRotation(-palm.up, -palm.forward);
+                fallRot *= Quaternion.Euler(0f, 0f, -90f);
+                _root.transform.SetPositionAndRotation(fallPos, fallRot);
                 return;
             }
 
