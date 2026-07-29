@@ -354,7 +354,8 @@ public static class GhostHolo
     }
 
     /// <summary>
-    /// Stable forearm attach (v1.0.5) + face outward + 90° clockwise.
+    /// Locked to forearm bones only — no palm.up, no head tracking (those made it roll away).
+    /// Plate flat on inner forearm, face toward the player.
     /// </summary>
     private static void AttachToLeftForearm()
     {
@@ -368,45 +369,52 @@ public static class GhostHolo
             Transform wrist = art?.artWristLf;
             Hand hand = Player.LeftHand;
 
-            Vector3 face;
-            Vector3 alongArm;
-            Vector3 pos;
-
-            if (lower != null && wrist != null)
-            {
-                alongArm = wrist.position - lower.position;
-                if (alongArm.sqrMagnitude < 1e-8f) return;
-                alongArm.Normalize();
-
-                pos = Vector3.Lerp(lower.position, wrist.position, 0.42f);
-
-                if (hand?.palmPositionTransform != null)
-                    face = hand.palmPositionTransform.up;
-                else
-                {
-                    face = Vector3.Cross(alongArm, Vector3.up);
-                    if (face.sqrMagnitude < 1e-6f) face = Vector3.Cross(alongArm, Vector3.forward);
-                    face.Normalize();
-                }
-
-                pos += face * 0.065f;
-            }
-            else
+            if (lower == null || wrist == null)
             {
                 if (hand == null) return;
                 Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
-                face = palm.up;
-                alongArm = -palm.forward;
-                pos = palm.TransformPoint(new Vector3(0f, 0.055f, -0.14f));
+                Vector3 pos = palm.TransformPoint(new Vector3(0f, 0.05f, -0.12f));
+                // Face player: UI front is -forward → point forward into the palm
+                Quaternion rot = Quaternion.LookRotation(-palm.up, -palm.forward);
+                rot *= Quaternion.Euler(0f, 0f, -90f);
+                _root.transform.SetPositionAndRotation(pos, rot);
+                return;
             }
 
-            // Same stable basis as v1.0.5 (no head-tracking — that made it roll).
-            // Y180 = face the player (not the back).
-            // Z-90 = 90° to the right, as requested.
-            Quaternion rot = Quaternion.LookRotation(face, -alongArm);
-            rot *= Quaternion.Euler(0f, 180f, -90f);
+            Vector3 along = wrist.position - lower.position;
+            if (along.sqrMagnitude < 1e-8f) return;
+            along.Normalize();
 
-            _root.transform.SetPositionAndRotation(pos, rot);
+            // Stable "out of inner forearm" from the BONE axes (follows arm, not fingers).
+            Vector3 a = Vector3.ProjectOnPlane(lower.up, along);
+            Vector3 b = Vector3.ProjectOnPlane(lower.right, along);
+            Vector3 c = Vector3.ProjectOnPlane(lower.forward, along);
+            Vector3 outward = a;
+            if (b.sqrMagnitude > outward.sqrMagnitude) outward = b;
+            if (c.sqrMagnitude > outward.sqrMagnitude) outward = c;
+            if (outward.sqrMagnitude < 1e-8f) return;
+            outward.Normalize();
+
+            // Flip once toward the palm side (sign only — does not track finger curl)
+            if (hand?.palmPositionTransform != null)
+            {
+                Vector3 toPalm = hand.palmPositionTransform.position - lower.position;
+                if (Vector3.Dot(outward, toPalm) < 0f)
+                    outward = -outward;
+            }
+
+            // Mid-forearm, lifted off the skin toward the player
+            Vector3 posMid = Vector3.Lerp(lower.position, wrist.position, 0.40f);
+            posMid += outward * 0.07f;
+
+            // Unity world canvas is readable from the -forward side.
+            // Point forward INTO the arm so the FACE looks at the player.
+            // up = toward elbow → long side of the plate runs across the arm (horizontal).
+            Quaternion rot = Quaternion.LookRotation(-outward, -along);
+            // 90° clockwise (вправо), as requested from the start
+            rot *= Quaternion.Euler(0f, 0f, -90f);
+
+            _root.transform.SetPositionAndRotation(posMid, rot);
         }
         catch { /* rig missing */ }
     }
