@@ -11,33 +11,34 @@ using Object = UnityEngine.Object;
 namespace BePrime.Ghost;
 
 /// <summary>
-/// Yellow cyberpunk hologram on the LEFT FOREARM (inner / vein face).
+/// Cyberpunk-style yellow hologram floating on the LEFT FOREARM.
 /// Poke with right index fingertip.
 /// </summary>
 public static class GhostHolo
 {
     private enum Tab { Nick, Lobby, Custom }
 
-    // Wide horizontal strip floating above inner forearm (~18cm x ~5cm)
-    private const float CanvasW = 440f;
-    private const float CanvasH = 120f;
-    private const float WorldScale = 0.00042f;
+    // Landscape holo plate (~19cm x ~7cm)
+    private const float CanvasW = 480f;
+    private const float CanvasH = 168f;
+    private const float WorldScale = 0.00040f;
 
     private static GameObject _root;
     private static RectTransform _canvasRt;
     private static RectTransform _panel;
+    private static RectTransform _content;
     private static RectTransform _toastRt;
     private static Image _toastBg;
+    private static Image _scanSweep;
     private static Text _toastTitle;
     private static Text _toastBody;
-    private static Text _body;
     private static Text _headerSub;
+    private static Font _font;
+
     private static readonly List<HoloBtn> _buttons = new List<HoloBtn>();
     private static Tab _tab = Tab.Nick;
     private static string _keypad = "";
     private static int _playerPage;
-    private static Font _font;
-
     private static bool _rebuildQueued;
     private static Tab _queuedTab;
 
@@ -46,7 +47,6 @@ public static class GhostHolo
     private static float _clickLockUntil;
     private static float _prevBestPlane = 99f;
     private const float ClickCooldown = 0.42f;
-    // Precise poke: inside button pad + close to surface + approaching
     private const float PlaneMax = 0.018f;
     private const float PlaneEnter = 0.013f;
     private const float EdgePad = 0.10f;
@@ -61,22 +61,31 @@ public static class GhostHolo
 
     private static float _appearT = 1f;
     private static float _baseScale = WorldScale;
+    private static float _scanT;
 
-    // Cyberpunk yellow
-    private static readonly Color Bg = new Color(0.06f, 0.05f, 0.01f, 0.92f);
-    private static readonly Color Panel = new Color(0.10f, 0.08f, 0.02f, 0.95f);
-    private static readonly Color Yellow = new Color(1f, 0.86f, 0.12f, 1f);
-    private static readonly Color YellowDim = new Color(0.55f, 0.42f, 0.05f, 1f);
-    private static readonly Color YellowHot = new Color(1f, 0.95f, 0.45f, 1f);
-    private static readonly Color YellowDeep = new Color(0.85f, 0.55f, 0.02f, 1f);
-    private static readonly Color TextCol = new Color(1f, 0.92f, 0.55f, 1f);
-    private static readonly Color Danger = new Color(1f, 0.28f, 0.12f, 1f);
-    private static readonly Color ToastBg = new Color(0.08f, 0.06f, 0.01f, 0.97f);
+    // CP2077-ish yellow holo glass
+    private static readonly Color Glass = new Color(0.18f, 0.14f, 0.02f, 0.42f);
+    private static readonly Color GlassDeep = new Color(0.10f, 0.08f, 0.01f, 0.55f);
+    private static readonly Color Frame = new Color(1f, 0.90f, 0.12f, 0.55f);
+    private static readonly Color Yellow = new Color(1f, 0.91f, 0.14f, 0.95f);
+    private static readonly Color YellowSoft = new Color(1f, 0.86f, 0.20f, 0.55f);
+    private static readonly Color YellowDim = new Color(0.70f, 0.55f, 0.08f, 0.35f);
+    private static readonly Color YellowHot = new Color(1f, 0.96f, 0.55f, 0.85f);
+    private static readonly Color RowIdle = new Color(1f, 0.88f, 0.15f, 0.10f);
+    private static readonly Color RowHover = new Color(1f, 0.90f, 0.20f, 0.28f);
+    private static readonly Color RowActive = new Color(1f, 0.85f, 0.10f, 0.38f);
+    private static readonly Color TextCol = new Color(1f, 0.94f, 0.55f, 0.92f);
+    private static readonly Color TextDim = new Color(0.85f, 0.72f, 0.25f, 0.70f);
+    private static readonly Color Danger = new Color(1f, 0.32f, 0.18f, 0.55f);
+    private static readonly Color DangerText = new Color(1f, 0.55f, 0.40f, 0.95f);
+    private static readonly Color ToastBg = new Color(0.12f, 0.10f, 0.02f, 0.72f);
+    private static readonly Color Scan = new Color(1f, 0.92f, 0.20f, 0.07f);
 
     private sealed class HoloBtn
     {
         public RectTransform Rt;
         public Image Bg;
+        public Image Accent;
         public Text Label;
         public Action OnClick;
         public bool DangerStyle;
@@ -107,6 +116,7 @@ public static class GhostHolo
         float dt = Time.unscaledDeltaTime;
         AttachToLeftForearm();
         AnimateAppear(dt);
+        AnimateScan(dt);
         AnimateButtons(dt);
         AnimateToast(dt);
         HandleTouch();
@@ -134,11 +144,12 @@ public static class GhostHolo
             _root = null;
             _canvasRt = null;
             _panel = null;
+            _content = null;
             _toastRt = null;
             _toastBg = null;
+            _scanSweep = null;
             _toastTitle = null;
             _toastBody = null;
-            _body = null;
             _headerSub = null;
         }
         _appearT = 1f;
@@ -157,7 +168,7 @@ public static class GhostHolo
             canvas.renderMode = RenderMode.WorldSpace;
             canvas.sortingOrder = 90;
             var scaler = _root.AddComponent<CanvasScaler>();
-            scaler.dynamicPixelsPerUnit = 14f;
+            scaler.dynamicPixelsPerUnit = 16f;
             _root.AddComponent<GraphicRaycaster>();
 
             _canvasRt = _root.GetComponent<RectTransform>();
@@ -165,66 +176,51 @@ public static class GhostHolo
             _baseScale = WorldScale;
             _root.transform.localScale = Vector3.one * _baseScale;
 
-            var frame = MakeImage(_root.transform, "Frame", YellowDim);
-            Stretch(frame.rectTransform);
+            // Soft outer glow frame
+            var glow = MakeImage(_root.transform, "Glow", new Color(1f, 0.85f, 0.1f, 0.12f));
+            Stretch(glow.rectTransform);
+            glow.rectTransform.offsetMin = new Vector2(-6f, -6f);
+            glow.rectTransform.offsetMax = new Vector2(6f, 6f);
 
-            _panel = MakeImage(_root.transform, "Panel", Bg).rectTransform;
+            // Thin neon border
+            var border = MakeImage(_root.transform, "Border", Frame);
+            Stretch(border.rectTransform);
+
+            // Glass plate
+            _panel = MakeImage(_root.transform, "Glass", Glass).rectTransform;
             Stretch(_panel);
-            Inset(_panel, 3f);
+            Inset(_panel, 2f);
 
-            // Header
-            var top = MakeImage(_panel, "Top", Panel).rectTransform;
-            SetAnchors(top, 0f, 1f, 1f, 1f);
-            top.pivot = new Vector2(0.5f, 1f);
-            top.sizeDelta = new Vector2(0f, 42f);
-            top.anchoredPosition = Vector2.zero;
-            InsetX(top, 4f);
+            // Inner wash
+            var wash = MakeImage(_panel, "Wash", GlassDeep);
+            Stretch(wash.rectTransform);
+            Inset(wash.rectTransform, 1f);
 
-            var title = MakeText(top, "Title", "GHOST", 18, Yellow, TextAnchor.MiddleLeft);
-            SetAnchors(title.rectTransform, 0f, 0.4f, 1f, 1f);
-            title.rectTransform.offsetMin = new Vector2(8f, 0f);
-            title.rectTransform.offsetMax = new Vector2(-6f, -2f);
+            // Scanlines (static bands)
+            BuildScanlines(_panel);
 
-            _headerSub = MakeText(top, "Sub", "FOREARM LINK", 10, YellowDeep, TextAnchor.MiddleLeft);
-            SetAnchors(_headerSub.rectTransform, 0f, 0f, 1f, 0.48f);
-            _headerSub.rectTransform.offsetMin = new Vector2(8f, 2f);
-            _headerSub.rectTransform.offsetMax = new Vector2(-6f, 0f);
+            // Moving sweep
+            _scanSweep = MakeImage(_panel, "Sweep", Scan);
+            SetAnchors(_scanSweep.rectTransform, 0f, 0f, 1f, 0f);
+            _scanSweep.rectTransform.pivot = new Vector2(0.5f, 0f);
+            _scanSweep.rectTransform.sizeDelta = new Vector2(0f, 18f);
+            _scanSweep.rectTransform.anchoredPosition = Vector2.zero;
 
-            var line = MakeImage(_panel, "Line", Yellow).rectTransform;
-            SetAnchors(line, 0f, 1f, 1f, 1f);
-            line.pivot = new Vector2(0.5f, 1f);
-            line.sizeDelta = new Vector2(0f, 2f);
-            line.anchoredPosition = new Vector2(0f, -42f);
-            InsetX(line, 6f);
+            // Corner brackets (CP chrome)
+            AddCorner(_panel, "TL", true, true);
+            AddCorner(_panel, "TR", false, true);
+            AddCorner(_panel, "BL", true, false);
+            AddCorner(_panel, "BR", false, false);
 
-            var tabs = MakeImage(_panel, "Tabs", new Color(0.08f, 0.06f, 0.01f, 1f)).rectTransform;
-            SetAnchors(tabs, 0f, 1f, 1f, 1f);
-            tabs.pivot = new Vector2(0.5f, 1f);
-            tabs.sizeDelta = new Vector2(0f, 34f);
-            tabs.anchoredPosition = new Vector2(0f, -46f);
-            InsetX(tabs, 4f);
+            BuildHeader(_panel);
+            BuildTabsBar(_panel);
 
-            var bodyGo = new GameObject("Body");
-            bodyGo.transform.SetParent(_panel, false);
-            var bodyRt = bodyGo.AddComponent<RectTransform>();
-            SetAnchors(bodyRt, 0f, 0f, 1f, 1f);
-            bodyRt.offsetMin = new Vector2(6f, 8f);
-            bodyRt.offsetMax = new Vector2(-6f, -84f);
-
-            _body = MakeText(bodyRt, "BodyText", "", 11, TextCol, TextAnchor.UpperLeft);
-            var brt = _body.rectTransform;
-            SetAnchors(brt, 0f, 0.62f, 1f, 1f);
-            brt.offsetMin = new Vector2(2f, 0f);
-            brt.offsetMax = new Vector2(-2f, -2f);
-            _body.horizontalOverflow = HorizontalWrapMode.Wrap;
-            _body.verticalOverflow = VerticalWrapMode.Truncate;
-
-            var btnHost = new GameObject("Buttons");
-            btnHost.transform.SetParent(bodyRt, false);
-            var bh = btnHost.AddComponent<RectTransform>();
-            SetAnchors(bh, 0f, 0f, 1f, 0.62f);
-            bh.offsetMin = Vector2.zero;
-            bh.offsetMax = Vector2.zero;
+            var contentGo = new GameObject("Content");
+            contentGo.transform.SetParent(_panel, false);
+            _content = contentGo.AddComponent<RectTransform>();
+            SetAnchors(_content, 0f, 0f, 1f, 1f);
+            _content.offsetMin = new Vector2(10f, 10f);
+            _content.offsetMax = new Vector2(-10f, -52f);
 
             BuildToast();
             _appearT = 0f;
@@ -237,6 +233,93 @@ public static class GhostHolo
         }
     }
 
+    private static void BuildHeader(RectTransform parent)
+    {
+        var top = MakeImage(parent, "Header", new Color(1f, 0.85f, 0.1f, 0.08f)).rectTransform;
+        SetAnchors(top, 0f, 1f, 1f, 1f);
+        top.pivot = new Vector2(0.5f, 1f);
+        top.sizeDelta = new Vector2(0f, 28f);
+        top.anchoredPosition = Vector2.zero;
+        InsetX(top, 8f);
+
+        var mark = MakeImage(top, "Mark", Yellow).rectTransform;
+        SetAnchors(mark, 0f, 0.2f, 0f, 0.8f);
+        mark.pivot = new Vector2(0f, 0.5f);
+        mark.sizeDelta = new Vector2(3f, 0f);
+        mark.anchoredPosition = new Vector2(6f, 0f);
+
+        var title = MakeText(top, "Title", "GHOST  //  NETRUNNER", 13, Yellow, TextAnchor.MiddleLeft);
+        SetAnchors(title.rectTransform, 0f, 0f, 0.62f, 1f);
+        title.rectTransform.offsetMin = new Vector2(14f, 0f);
+        title.rectTransform.offsetMax = new Vector2(0f, 0f);
+        title.fontStyle = FontStyle.Bold;
+
+        _headerSub = MakeText(top, "Sub", "LINK ACTIVE", 10, TextDim, TextAnchor.MiddleRight);
+        SetAnchors(_headerSub.rectTransform, 0.55f, 0f, 1f, 1f);
+        _headerSub.rectTransform.offsetMin = new Vector2(0f, 0f);
+        _headerSub.rectTransform.offsetMax = new Vector2(-10f, 0f);
+
+        var line = MakeImage(parent, "HeaderLine", YellowSoft).rectTransform;
+        SetAnchors(line, 0f, 1f, 1f, 1f);
+        line.pivot = new Vector2(0.5f, 1f);
+        line.sizeDelta = new Vector2(0f, 1.2f);
+        line.anchoredPosition = new Vector2(0f, -28f);
+        InsetX(line, 10f);
+    }
+
+    private static void BuildTabsBar(RectTransform parent)
+    {
+        var tabs = MakeImage(parent, "Tabs", new Color(1f, 0.85f, 0.1f, 0.06f)).rectTransform;
+        SetAnchors(tabs, 0f, 1f, 1f, 1f);
+        tabs.pivot = new Vector2(0.5f, 1f);
+        tabs.sizeDelta = new Vector2(0f, 22f);
+        tabs.anchoredPosition = new Vector2(0f, -30f);
+        InsetX(tabs, 8f);
+    }
+
+    private static void BuildScanlines(RectTransform parent)
+    {
+        var host = new GameObject("Scanlines");
+        host.transform.SetParent(parent, false);
+        var rt = host.AddComponent<RectTransform>();
+        Stretch(rt);
+        for (int i = 0; i < 14; i++)
+        {
+            float y = 1f - (i + 0.5f) / 14f;
+            var line = MakeImage(rt, "SL" + i, new Color(1f, 0.9f, 0.2f, i % 2 == 0 ? 0.035f : 0.018f));
+            SetAnchors(line.rectTransform, 0f, y, 1f, y);
+            line.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            line.rectTransform.sizeDelta = new Vector2(0f, 2.2f);
+            line.rectTransform.anchoredPosition = Vector2.zero;
+        }
+    }
+
+    private static void AddCorner(RectTransform parent, string name, bool left, bool top)
+    {
+        float ax = left ? 0f : 1f;
+        float ay = top ? 1f : 0f;
+        var go = new GameObject("Corner_" + name);
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = new Vector2(ax, ay);
+        rt.anchorMax = new Vector2(ax, ay);
+        rt.pivot = new Vector2(ax, ay);
+        rt.sizeDelta = new Vector2(18f, 18f);
+        rt.anchoredPosition = new Vector2(left ? 4f : -4f, top ? -4f : 4f);
+
+        var h = MakeImage(rt, "H", Yellow).rectTransform;
+        h.anchorMin = new Vector2(left ? 0f : 0.35f, top ? 0.85f : 0f);
+        h.anchorMax = new Vector2(left ? 0.65f : 1f, top ? 1f : 0.15f);
+        h.offsetMin = Vector2.zero;
+        h.offsetMax = Vector2.zero;
+
+        var v = MakeImage(rt, "V", Yellow).rectTransform;
+        v.anchorMin = new Vector2(left ? 0f : 0.85f, top ? 0.35f : 0f);
+        v.anchorMax = new Vector2(left ? 0.15f : 1f, top ? 1f : 0.65f);
+        v.offsetMin = Vector2.zero;
+        v.offsetMax = Vector2.zero;
+    }
+
     private static void BuildToast()
     {
         var go = new GameObject("Toast");
@@ -244,9 +327,9 @@ public static class GhostHolo
         _toastRt = go.AddComponent<RectTransform>();
         SetAnchors(_toastRt, 0f, 1f, 1f, 1f);
         _toastRt.pivot = new Vector2(0.5f, 1f);
-        _toastRt.sizeDelta = new Vector2(0f, 52f);
-        _toastRt.anchoredPosition = new Vector2(0f, 60f);
-        InsetX(_toastRt, 6f);
+        _toastRt.sizeDelta = new Vector2(0f, 36f);
+        _toastRt.anchoredPosition = new Vector2(0f, 42f);
+        InsetX(_toastRt, 12f);
 
         _toastBg = go.AddComponent<Image>();
         _toastBg.color = ToastBg;
@@ -254,24 +337,24 @@ public static class GhostHolo
         var accent = MakeImage(_toastRt, "Accent", Yellow).rectTransform;
         SetAnchors(accent, 0f, 0f, 0f, 1f);
         accent.pivot = new Vector2(0f, 0.5f);
-        accent.sizeDelta = new Vector2(4f, 0f);
+        accent.sizeDelta = new Vector2(3f, 0f);
 
-        _toastTitle = MakeText(_toastRt, "TTitle", "", 11, Yellow, TextAnchor.MiddleLeft);
+        _toastTitle = MakeText(_toastRt, "TTitle", "", 10, Yellow, TextAnchor.MiddleLeft);
         SetAnchors(_toastTitle.rectTransform, 0f, 0.48f, 1f, 1f);
         _toastTitle.rectTransform.offsetMin = new Vector2(10f, 0f);
-        _toastTitle.rectTransform.offsetMax = new Vector2(-4f, -3f);
+        _toastTitle.rectTransform.offsetMax = new Vector2(-6f, -2f);
 
-        _toastBody = MakeText(_toastRt, "TBody", "", 12, TextCol, TextAnchor.MiddleLeft);
+        _toastBody = MakeText(_toastRt, "TBody", "", 11, TextCol, TextAnchor.MiddleLeft);
         SetAnchors(_toastBody.rectTransform, 0f, 0f, 1f, 0.55f);
-        _toastBody.rectTransform.offsetMin = new Vector2(10f, 4f);
-        _toastBody.rectTransform.offsetMax = new Vector2(-4f, 0f);
+        _toastBody.rectTransform.offsetMin = new Vector2(10f, 2f);
+        _toastBody.rectTransform.offsetMax = new Vector2(-6f, 0f);
 
         _toastT = 1f;
         ApplyToastVisual();
     }
 
     /// <summary>
-    /// Float above LEFT FOREARM inner face — pulled out of the mesh, long side horizontal across the arm.
+    /// Float above left inner forearm. Whole plate upright & readable (not mirrored).
     /// </summary>
     private static void AttachToLeftForearm()
     {
@@ -285,46 +368,45 @@ public static class GhostHolo
             Transform wrist = art?.artWristLf;
             Hand hand = Player.LeftHand;
 
-            if (lower == null || wrist == null)
+            Vector3 face;
+            Vector3 alongArm;
+            Vector3 pos;
+
+            if (lower != null && wrist != null)
+            {
+                alongArm = wrist.position - lower.position;
+                if (alongArm.sqrMagnitude < 1e-8f) return;
+                alongArm.Normalize();
+
+                pos = Vector3.Lerp(lower.position, wrist.position, 0.42f);
+
+                if (hand?.palmPositionTransform != null)
+                    face = hand.palmPositionTransform.up;
+                else
+                {
+                    face = Vector3.Cross(alongArm, Vector3.up);
+                    if (face.sqrMagnitude < 1e-6f) face = Vector3.Cross(alongArm, Vector3.forward);
+                    face.Normalize();
+                }
+
+                pos += face * 0.065f;
+            }
+            else
             {
                 if (hand == null) return;
                 Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
-                // Out of palm, toward forearm — not buried in the hand
-                Vector3 fallPos = palm.TransformPoint(new Vector3(0f, 0.055f, -0.14f));
-                // Horizontal: canvas up toward elbow, long axis across the arm
-                Quaternion fallRot = Quaternion.LookRotation(palm.up, -palm.forward) * Quaternion.Euler(0f, 180f, 0f);
-                _root.transform.SetPositionAndRotation(fallPos, fallRot);
-                return;
+                face = palm.up;
+                alongArm = -palm.forward;
+                pos = palm.TransformPoint(new Vector3(0f, 0.055f, -0.14f));
             }
 
-            Vector3 alongArm = wrist.position - lower.position;
-            if (alongArm.sqrMagnitude < 1e-8f) return;
-            alongArm.Normalize();
-
-            // Mid-forearm — away from the glove / hand
-            Vector3 posMid = Vector3.Lerp(lower.position, wrist.position, 0.42f);
-
-            // Inner face (vein) ≈ palm-out
-            Vector3 face;
-            if (hand?.palmPositionTransform != null)
-                face = hand.palmPositionTransform.up;
-            else
-            {
-                face = Vector3.Cross(alongArm, Vector3.up);
-                if (face.sqrMagnitude < 1e-6f) face = Vector3.Cross(alongArm, Vector3.forward);
-                face.Normalize();
-            }
-
-            // Pull clearly OUT of the arm mesh (holo float)
-            posMid += face * 0.065f;
-
-            // Horizontal strip: long axis across the forearm (left↔right when looking at it),
-            // short axis along elbow→wrist. No Z90 — that made it look vertical.
-            // up = toward elbow so header sits "up" the arm
+            // Face the viewer looking at the inner forearm.
+            // up = toward elbow so header sits "up" the arm.
+            // Z 180 flips the whole plate upright (was inverted).
             Quaternion rot = Quaternion.LookRotation(face, -alongArm);
-            rot *= Quaternion.Euler(0f, 180f, 0f);
+            rot *= Quaternion.Euler(0f, 0f, 180f);
 
-            _root.transform.SetPositionAndRotation(posMid, rot);
+            _root.transform.SetPositionAndRotation(pos, rot);
         }
         catch { /* rig missing */ }
     }
@@ -334,8 +416,20 @@ public static class GhostHolo
         if (_appearT >= 1f || _root == null) return;
         _appearT = Mathf.Min(1f, _appearT + dt / 0.18f);
         float e = EaseOutCubic(_appearT);
-        float s = _baseScale * Mathf.Lerp(0.85f, 1f, e);
+        float s = _baseScale * Mathf.Lerp(0.88f, 1f, e);
         _root.transform.localScale = Vector3.one * s;
+    }
+
+    private static void AnimateScan(float dt)
+    {
+        if (_scanSweep == null) return;
+        _scanT += dt * 0.35f;
+        if (_scanT > 1f) _scanT -= 1f;
+        float y = Mathf.Lerp(0f, CanvasH - 28f, _scanT);
+        _scanSweep.rectTransform.anchoredPosition = new Vector2(0f, y);
+        Color c = Scan;
+        c.a = 0.04f + 0.05f * Mathf.Sin(_scanT * Mathf.PI);
+        _scanSweep.color = c;
     }
 
     private static void AnimateButtons(float dt)
@@ -346,20 +440,35 @@ public static class GhostHolo
             if (b?.Rt == null || b.Bg == null) continue;
 
             bool hover = i == _hoverIndex;
-            b.HoverBlend = Mathf.MoveTowards(b.HoverBlend, hover ? 1f : 0f, dt * 10f);
+            b.HoverBlend = Mathf.MoveTowards(b.HoverBlend, hover ? 1f : 0f, dt * 12f);
             if (b.PressAnim > 0f)
-                b.PressAnim = Mathf.Max(0f, b.PressAnim - dt / 0.15f);
+                b.PressAnim = Mathf.Max(0f, b.PressAnim - dt / 0.14f);
 
             float punch = b.PressAnim > 0f
-                ? 1f - Mathf.Sin((1f - b.PressAnim) * Mathf.PI) * 0.12f
+                ? 1f - Mathf.Sin((1f - b.PressAnim) * Mathf.PI) * 0.06f
                 : 1f;
-            float hoverScale = Mathf.Lerp(1f, 1.04f, b.HoverBlend);
-            b.Rt.localScale = b.BaseScale * punch * hoverScale;
+            b.Rt.localScale = b.BaseScale * punch;
 
-            Color baseCol = b.DangerStyle ? Danger : (b.AccentStyle ? YellowDeep : YellowDim);
-            Color hot = b.DangerStyle ? new Color(1f, 0.5f, 0.3f) : YellowHot;
-            Color flash = Color.Lerp(baseCol, Yellow, b.PressAnim * 0.7f);
-            b.Bg.color = Color.Lerp(flash, hot, b.HoverBlend * (1f - b.PressAnim));
+            Color idle = b.DangerStyle ? new Color(Danger.r, Danger.g, Danger.b, 0.18f)
+                : (b.AccentStyle ? RowActive : RowIdle);
+            Color hot = b.DangerStyle ? Danger : RowHover;
+            b.Bg.color = Color.Lerp(idle, hot, b.HoverBlend);
+
+            if (b.Accent != null)
+            {
+                Color a = b.DangerStyle ? DangerText : Yellow;
+                a.a = Mathf.Lerp(0.35f, 0.95f, b.HoverBlend);
+                if (b.AccentStyle) a.a = 0.95f;
+                b.Accent.color = a;
+            }
+
+            if (b.Label != null)
+            {
+                Color tc = b.DangerStyle ? DangerText : TextCol;
+                if (b.AccentStyle) tc = Yellow;
+                tc.a = Mathf.Lerp(0.75f, 1f, b.HoverBlend);
+                b.Label.color = tc;
+            }
         }
     }
 
@@ -380,14 +489,14 @@ public static class GhostHolo
     {
         if (_toastRt == null) return;
         float e = EaseOutCubic(1f - _toastT);
-        _toastRt.anchoredPosition = new Vector2(0f, Mathf.Lerp(56f, -4f, e));
+        _toastRt.anchoredPosition = new Vector2(0f, Mathf.Lerp(40f, -2f, e));
         if (_toastBg != null)
         {
             Color c = ToastBg; c.a = ToastBg.a * e; _toastBg.color = c;
         }
         if (_toastTitle != null)
         {
-            _toastTitle.text = ">> " + _toastTitleStr;
+            _toastTitle.text = "// " + _toastTitleStr;
             var c = Yellow; c.a = e; _toastTitle.color = c;
         }
         if (_toastBody != null)
@@ -427,7 +536,6 @@ public static class GhostHolo
 
         _hoverIndex = best;
 
-        // Fire on approach through the surface while inside the button pad
         bool poke = best >= 0 && bestAbs <= PlaneEnter && _prevBestPlane > PlaneEnter;
         _prevBestPlane = best >= 0 ? bestAbs : 99f;
 
@@ -524,106 +632,101 @@ public static class GhostHolo
     private static void Rebuild(Tab tab)
     {
         _tab = tab;
-        ClearButtons();
-        if (_panel == null) return;
+        ClearContent();
+        if (_panel == null || _content == null) return;
 
-        AddTabButton(0, "NICK", Tab.Nick);
-        AddTabButton(1, "LOBBY", Tab.Lobby);
-        AddTabButton(2, "CODE", Tab.Custom);
-
-        Transform host = _panel.Find("Body/Buttons");
-        if (host == null) return;
+        AddTab(0, "IDENTITY", Tab.Nick);
+        AddTab(1, "LOBBY", Tab.Lobby);
+        AddTab(2, "MOD.IO", Tab.Custom);
 
         switch (tab)
         {
-            case Tab.Nick: BuildNick(host); break;
-            case Tab.Lobby: BuildLobby(host); break;
-            case Tab.Custom: BuildCustom(host); break;
+            case Tab.Nick: BuildNick(); break;
+            case Tab.Lobby: BuildLobby(); break;
+            case Tab.Custom: BuildCustom(); break;
         }
 
-        if (_body != null) _body.text = BodyText(tab);
         if (_headerSub != null)
-            _headerSub.text = tab == Tab.Lobby && !GhostLobby.IsHost ? "HOST ONLY" : "FOREARM LINK";
+            _headerSub.text = tab == Tab.Lobby && !GhostLobby.IsHost ? "HOST ONLY" : "LINK ACTIVE";
 
         _insideIndex = -1;
         _hoverIndex = -1;
     }
 
-    private static string BodyText(Tab tab)
+    private static void BuildNick()
     {
-        switch (tab)
-        {
-            case Tab.Nick:
-                return "IDENTITY\nHide / rename / clone\na player in session";
-            case Tab.Lobby:
-                return GhostLobby.IsHost
-                    ? $"LOBBY  HOST\nFakes: {GhostLobby.Fakes.Count}"
-                    : "LOBBY\nHost a server\nto unlock";
-            case Tab.Custom:
-                return $"MOD.IO\n> {_keypad}_";
-            default:
-                return "";
-        }
-    }
-
-    private static void BuildNick(Transform host)
-    {
+        // Left column — identity ops
+        var left = MakeSection(_content, "ID", "IDENTITY", 0f, 0f, 0.48f, 1f);
         float y = -4f;
-        AddAction(host, ref y, "HIDE NAME", () =>
+        AddRow(left, ref y, "HIDE NAME", "braille blank", () =>
         {
             GhostIdentity.ApplyInvisible();
             Notify("NICK", "Name hidden");
         });
-        AddAction(host, ref y, "NAME: GHOST", () =>
+        AddRow(left, ref y, "SET · GHOST", "preset", () =>
         {
             GhostIdentity.ApplyPreset("GHOST");
             Notify("NICK", "Set to GHOST");
         });
-        AddAction(host, ref y, "NAME: UNKNOWN", () =>
+        AddRow(left, ref y, "SET · UNKNOWN", "preset", () =>
         {
             GhostIdentity.ApplyPreset("UNKNOWN");
             Notify("NICK", "Set to UNKNOWN");
         });
-        AddAction(host, ref y, "NAME: ANON", () =>
+        AddRow(left, ref y, "SET · ANON", "preset", () =>
         {
             GhostIdentity.ApplyPreset("ANON");
             Notify("NICK", "Set to ANON");
         });
-        AddAction(host, ref y, "RESTORE", () =>
+        AddRow(left, ref y, "RESTORE PROFILE", "revert", () =>
         {
             GhostIdentity.Restore();
             Notify("RESTORE", "Real profile back");
         }, danger: true);
 
+        // Right column — session players
+        var right = MakeSection(_content, "PLY", "SESSION PLAYERS", 0.52f, 0f, 1f, 1f);
+        float ry = -4f;
         var players = GhostIdentity.ListSessionPlayers();
-        int start = _playerPage * 2;
-        for (int i = start; i < players.Count && i < start + 2; i++)
+        if (players.Count == 0)
         {
-            var entry = players[i];
-            string label = "COPY " + Trim(entry.label, 10);
-            PlayerID id = entry.id;
-            string captured = entry.label;
-            AddAction(host, ref y, label, () =>
-            {
-                GhostIdentity.CloneFromPlayer(id);
-                Notify("CLONE", Trim(captured, 16));
-            });
+            AddHint(right, ref ry, "No other players in session");
         }
-        if (players.Count > 2)
+        else
         {
-            AddAction(host, ref y, "MORE PLAYERS", () =>
+            int start = _playerPage * 4;
+            int shown = 0;
+            for (int i = start; i < players.Count && shown < 4; i++, shown++)
             {
-                _playerPage++;
-                if (_playerPage * 2 >= players.Count) _playerPage = 0;
-                QueueRebuild(Tab.Nick);
-            });
+                var entry = players[i];
+                PlayerID id = entry.id;
+                string captured = entry.label;
+                string name = Trim(entry.label, 14);
+                AddRow(right, ref ry, "CLONE · " + name, "copy identity", () =>
+                {
+                    GhostIdentity.CloneFromPlayer(id);
+                    Notify("CLONE", Trim(captured, 16));
+                });
+            }
+            if (players.Count > 4)
+            {
+                AddRow(right, ref ry, "NEXT PAGE ›", $"{_playerPage + 1}/{Mathf.CeilToInt(players.Count / 4f)}", () =>
+                {
+                    _playerPage++;
+                    if (_playerPage * 4 >= players.Count) _playerPage = 0;
+                    QueueRebuild(Tab.Nick);
+                }, accent: true);
+            }
         }
     }
 
-    private static void BuildLobby(Transform host)
+    private static void BuildLobby()
     {
+        var left = MakeSection(_content, "LB", "LOBBY SPOOF", 0f, 0f, 0.48f, 1f);
         float y = -4f;
-        AddAction(host, ref y, "ADD FAKE", () =>
+        string hostHint = GhostLobby.IsHost ? $"fakes online · {GhostLobby.Fakes.Count}" : "host required";
+        AddHint(left, ref y, hostHint);
+        AddRow(left, ref y, "ADD FAKE SLOT", "inject playerinfo", () =>
         {
             int before = GhostLobby.Fakes.Count;
             GhostLobby.AddFake();
@@ -632,8 +735,8 @@ public static class GhostHolo
                 Notify("LOBBY", $"Fake +1 · {GhostLobby.Fakes.Count}");
                 QueueRebuild(Tab.Lobby);
             }
-        });
-        AddAction(host, ref y, "CLEAR FAKES", () =>
+        }, accent: true);
+        AddRow(left, ref y, "CLEAR ALL FAKES", "wipe metadata", () =>
         {
             if (!GhostLobby.IsHost)
             {
@@ -645,10 +748,13 @@ public static class GhostHolo
             QueueRebuild(Tab.Lobby);
         }, danger: true);
 
-        for (int i = 0; i < GhostLobby.AvatarPresets.Length && i < 4; i++)
+        var right = MakeSection(_content, "AV", "AVATAR ICON", 0.52f, 0f, 1f, 1f);
+        float ry = -4f;
+        AddHint(right, ref ry, "apply local avatar meta");
+        for (int i = 0; i < GhostLobby.AvatarPresets.Length && i < 5; i++)
         {
             string av = GhostLobby.AvatarPresets[i];
-            AddAction(host, ref y, "ICON: " + av.ToUpperInvariant(), () =>
+            AddRow(right, ref ry, av.ToUpperInvariant(), "icon preset", () =>
             {
                 GhostIdentity.ApplyAvatarMeta(av, -1);
                 Notify("AVATAR", "Icon → " + av);
@@ -656,19 +762,41 @@ public static class GhostHolo
         }
     }
 
-    private static void BuildCustom(Transform host)
+    private static void BuildCustom()
     {
+        var left = MakeSection(_content, "IN", "MOD.IO ID", 0f, 0f, 0.42f, 1f);
+        float y = -6f;
+        AddHint(left, ref y, "enter numeric mod id");
+
+        var display = MakeImage(left, "Display", new Color(1f, 0.88f, 0.12f, 0.12f)).rectTransform;
+        display.anchorMin = new Vector2(0f, 1f);
+        display.anchorMax = new Vector2(1f, 1f);
+        display.pivot = new Vector2(0.5f, 1f);
+        display.sizeDelta = new Vector2(0f, 28f);
+        display.anchoredPosition = new Vector2(0f, y);
+        var edge = MakeImage(display, "E", YellowSoft);
+        Stretch(edge.rectTransform);
+        Inset(edge.rectTransform, 0f);
+        edge.color = new Color(Yellow.r, Yellow.g, Yellow.b, 0.35f);
+        var fill = MakeImage(display, "F", RowIdle);
+        Stretch(fill.rectTransform);
+        Inset(fill.rectTransform, 1f);
+        string shown = string.IsNullOrEmpty(_keypad) ? "——" : _keypad + "_";
+        var dispTxt = MakeText(display, "V", shown, 16, Yellow, TextAnchor.MiddleCenter);
+        Stretch(dispTxt.rectTransform);
+
+        var right = MakeSection(_content, "KP", "KEYPAD", 0.46f, 0f, 1f, 1f);
         string[] keys = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "CLR", "0", "OK" };
         for (int i = 0; i < keys.Length; i++)
         {
             int col = i % 3;
             int row = i / 3;
             string key = keys[i];
-            float x = 6f + col * 48f;
-            float yy = -4f - row * 36f;
+            float x = 4f + col * 58f;
+            float yy = -4f - row * 26f;
             bool danger = key == "CLR";
             bool accent = key == "OK";
-            AddActionAt(host, x, yy, 44f, 32f, key, () =>
+            AddRowAt(right, x, yy, 54f, 22f, key, null, () =>
             {
                 if (key == "CLR")
                 {
@@ -693,55 +821,111 @@ public static class GhostHolo
         }
     }
 
-    private static void AddTabButton(int index, string label, Tab tab)
+    private static RectTransform MakeSection(Transform parent, string id, string title, float x0, float y0, float x1, float y1)
+    {
+        var go = new GameObject("Sec_" + id);
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        SetAnchors(rt, x0, y0, x1, y1);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        var bg = MakeImage(rt, "Bg", new Color(1f, 0.88f, 0.12f, 0.05f));
+        Stretch(bg.rectTransform);
+
+        var border = MakeImage(rt, "Bd", new Color(1f, 0.9f, 0.15f, 0.22f));
+        Stretch(border.rectTransform);
+        // hollow feel: shrink fill slightly via nested wash
+        var inner = MakeImage(rt, "In", new Color(0.05f, 0.04f, 0.01f, 0.15f));
+        Stretch(inner.rectTransform);
+        Inset(inner.rectTransform, 1f);
+
+        var head = MakeText(rt, "H", title, 9, TextDim, TextAnchor.MiddleLeft);
+        SetAnchors(head.rectTransform, 0f, 1f, 1f, 1f);
+        head.rectTransform.pivot = new Vector2(0f, 1f);
+        head.rectTransform.sizeDelta = new Vector2(0f, 14f);
+        head.rectTransform.anchoredPosition = Vector2.zero;
+        head.rectTransform.offsetMin = new Vector2(6f, -14f);
+        head.rectTransform.offsetMax = new Vector2(-4f, 0f);
+
+        var body = new GameObject("Body");
+        body.transform.SetParent(rt, false);
+        var brt = body.AddComponent<RectTransform>();
+        SetAnchors(brt, 0f, 0f, 1f, 1f);
+        brt.offsetMin = new Vector2(5f, 4f);
+        brt.offsetMax = new Vector2(-5f, -16f);
+        return brt;
+    }
+
+    private static void AddHint(Transform host, ref float y, string text)
+    {
+        var t = MakeText(host, "Hint", text, 9, TextDim, TextAnchor.MiddleLeft);
+        t.rectTransform.anchorMin = new Vector2(0f, 1f);
+        t.rectTransform.anchorMax = new Vector2(1f, 1f);
+        t.rectTransform.pivot = new Vector2(0f, 1f);
+        t.rectTransform.sizeDelta = new Vector2(0f, 12f);
+        t.rectTransform.anchoredPosition = new Vector2(2f, y);
+        y -= 14f;
+    }
+
+    private static void AddTab(int index, string label, Tab tab)
     {
         var tabs = _panel.Find("Tabs");
         if (tabs == null) return;
-        float w = 46f;
-        float x = 6f + index * (w + 4f);
+        float w = 78f;
+        float x = 6f + index * (w + 6f);
         bool active = _tab == tab;
-        AddActionAt(tabs, x, -3f, w, 28f, label, () => QueueRebuild(tab), false, active);
+        AddRowAt(tabs, x, -2f, w, 18f, label, null, () => QueueRebuild(tab), false, active);
     }
 
-    private static void AddAction(Transform host, ref float y, string label, Action act, bool danger = false)
+    private static void AddRow(Transform host, ref float y, string label, string sub, Action act, bool danger = false, bool accent = false)
     {
-        AddActionAt(host, 2f, y, 140f, 28f, label, act, danger, false);
-        y -= 32f;
+        AddRowAt(host, 0f, y, -1f, 20f, label, sub, act, danger, accent);
+        y -= 22f;
     }
 
-    private static void AddActionAt(Transform host, float x, float y, float w, float h, string label, Action act, bool danger = false, bool accent = false)
+    private static void AddRowAt(Transform host, float x, float y, float w, float h, string label, string sub, Action act, bool danger = false, bool accent = false)
     {
-        var go = new GameObject("Btn_" + label);
+        var go = new GameObject("Row_" + label);
         go.transform.SetParent(host, false);
         var rt = go.AddComponent<RectTransform>();
         rt.anchorMin = new Vector2(0f, 1f);
-        rt.anchorMax = new Vector2(0f, 1f);
+        rt.anchorMax = w < 0f ? new Vector2(1f, 1f) : new Vector2(0f, 1f);
         rt.pivot = new Vector2(0f, 1f);
-        rt.sizeDelta = new Vector2(w, h);
+        rt.sizeDelta = new Vector2(w < 0f ? 0f : w, h);
         rt.anchoredPosition = new Vector2(x, y);
 
-        var outer = go.AddComponent<Image>();
-        outer.color = new Color(0f, 0f, 0f, 0f);
-        outer.raycastTarget = false;
+        var fillImg = go.AddComponent<Image>();
+        fillImg.color = accent ? RowActive : RowIdle;
+        fillImg.raycastTarget = false;
 
-        var edge = MakeImage(rt, "Edge", Yellow).rectTransform;
-        Stretch(edge);
-        edge.GetComponent<Image>().color = new Color(Yellow.r, Yellow.g, Yellow.b, 0.4f);
+        var accentBar = MakeImage(rt, "Acc", Yellow).rectTransform;
+        SetAnchors(accentBar, 0f, 0.15f, 0f, 0.85f);
+        accentBar.pivot = new Vector2(0f, 0.5f);
+        accentBar.sizeDelta = new Vector2(2f, 0f);
+        accentBar.anchoredPosition = new Vector2(2f, 0f);
+        var accentImg = accentBar.GetComponent<Image>();
 
-        var fill = MakeImage(rt, "Fill", YellowDim).rectTransform;
-        Stretch(fill);
-        Inset(fill, 1.5f);
-        var fillImg = fill.GetComponent<Image>();
-        fillImg.color = danger ? Danger : (accent ? YellowDeep : YellowDim);
+        var txt = MakeText(rt, "L", label, 10, TextCol, TextAnchor.MiddleLeft);
+        SetAnchors(txt.rectTransform, 0f, 0f, 1f, 1f);
+        txt.rectTransform.offsetMin = new Vector2(8f, 0f);
+        txt.rectTransform.offsetMax = new Vector2(sub != null ? -48f : -4f, 0f);
+        if (accent) { txt.color = Yellow; txt.fontStyle = FontStyle.Bold; }
+        if (danger) txt.color = DangerText;
 
-        var txt = MakeText(rt, "L", label, 11, TextCol, TextAnchor.MiddleCenter);
-        Stretch(txt.rectTransform);
-        Inset(txt.rectTransform, 2f);
+        if (!string.IsNullOrEmpty(sub))
+        {
+            var st = MakeText(rt, "S", sub, 8, TextDim, TextAnchor.MiddleRight);
+            SetAnchors(st.rectTransform, 0.45f, 0f, 1f, 1f);
+            st.rectTransform.offsetMin = new Vector2(0f, 0f);
+            st.rectTransform.offsetMax = new Vector2(-4f, 0f);
+        }
 
         _buttons.Add(new HoloBtn
         {
             Rt = rt,
             Bg = fillImg,
+            Accent = accentImg,
             Label = txt,
             OnClick = act,
             DangerStyle = danger,
@@ -750,7 +934,7 @@ public static class GhostHolo
         });
     }
 
-    private static void ClearButtons()
+    private static void ClearContent()
     {
         for (int i = 0; i < _buttons.Count; i++)
             if (_buttons[i]?.Rt != null) Object.Destroy(_buttons[i].Rt.gameObject);
@@ -761,10 +945,10 @@ public static class GhostHolo
         if (tabs != null)
             for (int i = tabs.childCount - 1; i >= 0; i--)
                 Object.Destroy(tabs.GetChild(i).gameObject);
-        var host = _panel.Find("Body/Buttons");
-        if (host != null)
-            for (int i = host.childCount - 1; i >= 0; i--)
-                Object.Destroy(host.GetChild(i).gameObject);
+
+        if (_content != null)
+            for (int i = _content.childCount - 1; i >= 0; i--)
+                Object.Destroy(_content.GetChild(i).gameObject);
     }
 
     private static string Trim(string s, int n)
