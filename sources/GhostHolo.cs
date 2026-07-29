@@ -354,7 +354,7 @@ public static class GhostHolo
     }
 
     /// <summary>
-    /// Flat on left inner forearm — plate parallel to skin, readable from the head.
+    /// Stable forearm attach (v1.0.5) + face outward + 90° clockwise.
     /// </summary>
     private static void AttachToLeftForearm()
     {
@@ -367,52 +367,44 @@ public static class GhostHolo
             Transform lower = art?.artLowerArmLf;
             Transform wrist = art?.artWristLf;
             Hand hand = Player.LeftHand;
-            if (hand == null) return;
 
-            Transform palmTf = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
-
+            Vector3 face;
             Vector3 alongArm;
-            Vector3 mid;
+            Vector3 pos;
+
             if (lower != null && wrist != null)
             {
                 alongArm = wrist.position - lower.position;
                 if (alongArm.sqrMagnitude < 1e-8f) return;
                 alongArm.Normalize();
-                mid = Vector3.Lerp(lower.position, wrist.position, 0.38f);
+
+                pos = Vector3.Lerp(lower.position, wrist.position, 0.42f);
+
+                if (hand?.palmPositionTransform != null)
+                    face = hand.palmPositionTransform.up;
+                else
+                {
+                    face = Vector3.Cross(alongArm, Vector3.up);
+                    if (face.sqrMagnitude < 1e-6f) face = Vector3.Cross(alongArm, Vector3.forward);
+                    face.Normalize();
+                }
+
+                pos += face * 0.065f;
             }
             else
             {
-                alongArm = -palmTf.forward;
-                if (alongArm.sqrMagnitude < 1e-8f) alongArm = Vector3.forward;
-                alongArm.Normalize();
-                mid = palmTf.TransformPoint(new Vector3(0f, 0f, -0.12f));
+                if (hand == null) return;
+                Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
+                face = palm.up;
+                alongArm = -palm.forward;
+                pos = palm.TransformPoint(new Vector3(0f, 0.055f, -0.14f));
             }
 
-            // Out of the inner forearm (toward palm), NOT palm.up — that axis
-            // was standing the plate on its edge toward the camera.
-            Vector3 skinOut = Vector3.ProjectOnPlane(palmTf.position - mid, alongArm);
-            if (skinOut.sqrMagnitude < 1e-6f)
-                skinOut = Vector3.ProjectOnPlane(palmTf.up, alongArm);
-            if (skinOut.sqrMagnitude < 1e-6f)
-                skinOut = Vector3.Cross(alongArm, Vector3.up);
-            if (skinOut.sqrMagnitude < 1e-6f)
-                skinOut = Vector3.Cross(alongArm, Vector3.forward);
-            skinOut.Normalize();
-
-            // Readable side faces the head
-            if (Player.Head != null && Vector3.Dot(skinOut, Player.Head.position - mid) < 0f)
-                skinOut = -skinOut;
-
-            Vector3 pos = mid + skinOut * 0.075f;
-
-            // Horizontal plate: short axis along arm (toward elbow), long axis across
-            Vector3 up = Vector3.ProjectOnPlane(-alongArm, skinOut);
-            if (up.sqrMagnitude < 1e-6f)
-                up = Vector3.ProjectOnPlane(Vector3.up, skinOut);
-            up.Normalize();
-
-            // World-space canvas faces +forward; LookRotation toward skinOut = flat on arm
-            Quaternion rot = Quaternion.LookRotation(skinOut, up);
+            // Same stable basis as v1.0.5 (no head-tracking — that made it roll).
+            // Y180 = face the player (not the back).
+            // Z-90 = 90° to the right, as requested.
+            Quaternion rot = Quaternion.LookRotation(face, -alongArm);
+            rot *= Quaternion.Euler(0f, 180f, -90f);
 
             _root.transform.SetPositionAndRotation(pos, rot);
         }
