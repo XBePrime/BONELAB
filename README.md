@@ -98,6 +98,28 @@ Bare-hand Quest tracking — every finger synced to the rig
 <br/>
 
 
+
+<div align="center">
+
+### Ghost
+<img src="https://raw.githubusercontent.com/XBePrime/BONELAB/media/ghost.png" alt="Ghost" width="72" />
+
+<br/>
+
+Ghost — invisible nick · lobby fakes · wrist holo
+
+<br/>
+
+<a href="https://github.com/XBePrime/BONELAB/tree/Ghost"><img src="https://img.shields.io/badge/%20-Open_Ghost-FF6A00?style=for-the-badge&logo=github&logoColor=white" height="44" /></a>
+&nbsp;
+<a href="https://github.com/XBePrime/BONELAB/releases/download/ghost-v1.0.0/Ghost.dll"><img src="https://img.shields.io/badge/%20-Download_DLL-16A34A?style=for-the-badge&logo=dotnet&logoColor=white" height="44" /></a>
+&nbsp;
+<a href="https://t.me/be_primex"><img src="https://img.shields.io/badge/%20-Telegram-0284C7?style=for-the-badge&logo=telegram&logoColor=white" height="44" /></a>
+
+</div>
+
+<br/>
+
 ## Community
 
 <div align="center">
