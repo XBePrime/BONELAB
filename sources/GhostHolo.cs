@@ -47,9 +47,9 @@ public static class GhostHolo
     private static float _clickLockUntil;
     private static float _prevBestPlane = 99f;
     private const float ClickCooldown = 0.42f;
-    private const float PlaneMax = 0.018f;
-    private const float PlaneEnter = 0.013f;
-    private const float EdgePad = 0.10f;
+    private const float PlaneMax = 0.028f;
+    private const float PlaneEnter = 0.018f;
+    private const float EdgePad = 0.12f;
 
     private static float _toastT = 1f;
     private static float _toastHoldUntil;
@@ -354,7 +354,7 @@ public static class GhostHolo
     }
 
     /// <summary>
-    /// Float above left inner forearm. Whole plate upright & readable (not mirrored).
+    /// Flat on left inner forearm — plate parallel to skin, readable from the head.
     /// </summary>
     private static void AttachToLeftForearm()
     {
@@ -367,44 +367,52 @@ public static class GhostHolo
             Transform lower = art?.artLowerArmLf;
             Transform wrist = art?.artWristLf;
             Hand hand = Player.LeftHand;
+            if (hand == null) return;
 
-            Vector3 face;
+            Transform palmTf = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
+
             Vector3 alongArm;
-            Vector3 pos;
-
+            Vector3 mid;
             if (lower != null && wrist != null)
             {
                 alongArm = wrist.position - lower.position;
                 if (alongArm.sqrMagnitude < 1e-8f) return;
                 alongArm.Normalize();
-
-                pos = Vector3.Lerp(lower.position, wrist.position, 0.42f);
-
-                if (hand?.palmPositionTransform != null)
-                    face = hand.palmPositionTransform.up;
-                else
-                {
-                    face = Vector3.Cross(alongArm, Vector3.up);
-                    if (face.sqrMagnitude < 1e-6f) face = Vector3.Cross(alongArm, Vector3.forward);
-                    face.Normalize();
-                }
-
-                pos += face * 0.065f;
+                mid = Vector3.Lerp(lower.position, wrist.position, 0.38f);
             }
             else
             {
-                if (hand == null) return;
-                Transform palm = hand.palmPositionTransform != null ? hand.palmPositionTransform : hand.transform;
-                face = palm.up;
-                alongArm = -palm.forward;
-                pos = palm.TransformPoint(new Vector3(0f, 0.055f, -0.14f));
+                alongArm = -palmTf.forward;
+                if (alongArm.sqrMagnitude < 1e-8f) alongArm = Vector3.forward;
+                alongArm.Normalize();
+                mid = palmTf.TransformPoint(new Vector3(0f, 0f, -0.12f));
             }
 
-            // Face the viewer looking at the inner forearm.
-            // up = toward elbow so header sits "up" the arm.
-            // Z 180 flips the whole plate upright (was inverted).
-            Quaternion rot = Quaternion.LookRotation(face, -alongArm);
-            rot *= Quaternion.Euler(0f, 0f, 180f);
+            // Out of the inner forearm (toward palm), NOT palm.up — that axis
+            // was standing the plate on its edge toward the camera.
+            Vector3 skinOut = Vector3.ProjectOnPlane(palmTf.position - mid, alongArm);
+            if (skinOut.sqrMagnitude < 1e-6f)
+                skinOut = Vector3.ProjectOnPlane(palmTf.up, alongArm);
+            if (skinOut.sqrMagnitude < 1e-6f)
+                skinOut = Vector3.Cross(alongArm, Vector3.up);
+            if (skinOut.sqrMagnitude < 1e-6f)
+                skinOut = Vector3.Cross(alongArm, Vector3.forward);
+            skinOut.Normalize();
+
+            // Readable side faces the head
+            if (Player.Head != null && Vector3.Dot(skinOut, Player.Head.position - mid) < 0f)
+                skinOut = -skinOut;
+
+            Vector3 pos = mid + skinOut * 0.075f;
+
+            // Horizontal plate: short axis along arm (toward elbow), long axis across
+            Vector3 up = Vector3.ProjectOnPlane(-alongArm, skinOut);
+            if (up.sqrMagnitude < 1e-6f)
+                up = Vector3.ProjectOnPlane(Vector3.up, skinOut);
+            up.Normalize();
+
+            // World-space canvas faces +forward; LookRotation toward skinOut = flat on arm
+            Quaternion rot = Quaternion.LookRotation(skinOut, up);
 
             _root.transform.SetPositionAndRotation(pos, rot);
         }
@@ -536,6 +544,7 @@ public static class GhostHolo
 
         _hoverIndex = best;
 
+        // Poke = tip crosses into contact depth while still over the button
         bool poke = best >= 0 && bestAbs <= PlaneEnter && _prevBestPlane > PlaneEnter;
         _prevBestPlane = best >= 0 ? bestAbs : 99f;
 
